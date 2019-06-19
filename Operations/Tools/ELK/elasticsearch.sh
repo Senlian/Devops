@@ -7,7 +7,6 @@
 ES_HOME=
 ES_BIN_DIR=
 ES_DATA_DIR=
-ES_LOG_DIR=
 
 readonly ES_PID_DIR="/var/run/elasticsearch"
 # 单引号内不能使用变量和转义字符
@@ -27,7 +26,6 @@ while [ -h ${ES_HOME} ]; do
     DIR_PATH=`dirname "${ES_HOME}"`
     ES_HOME=${DIR_PATH}/${REAL_PATH}
 done
-echo ${ES_HOME}
 # 工作目录不存在退出程序
 if [ ! -d ${ES_HOME} ]; then
     exit -1
@@ -40,11 +38,11 @@ fi
 # 可执行文件目录设置
 ES_BIN_DIR="${ES_HOME}/bin"
 # 日志目录设置
-ES_LOG="${ES_HOME}/log/elasticsearch.log"
+ES_LOG="${ES_HOME}/logs/elasticsearch.log"
 ES_GROUP="elk"
 ES_USER="elk"
 ES_OPTS="-d"
-ES_BIN_SCRIPT="/usr/bin/env ${ES_HOME}/bin/elasticsearch ${ES_OPTS} > ${ES_LOG} 2>&1 &  echo \$! > ${ES_PID_FILE}"
+
 egrep "^${ES_GROUP}" /etc/group >& /dev/null
 if [ $? -ne 0 ];then
   groupadd  ${ES_GROUP}
@@ -54,103 +52,157 @@ egrep "^${ES_USER}" /etc/passwd >& /dev/null
 if [ $? -ne 0 ];then
   useradd -g ${ES_GROUP}  ${ES_USER}
 fi
-chown -R ${ES_USER}:${ES_GROUP} {ES_HOME}
+chown -R ${ES_USER}:${ES_GROUP} ${ES_HOME}
+chown -R ${ES_USER}:${ES_GROUP} ${ES_DATA_DIR}
+chown -R ${ES_USER}:${ES_GROUP} ${ES_LOG}
 
 function start(){
-    echo -e "\033[1mStarting elasticsearch...\033[0m"
+    echo -e "\033[1;34mStarting elasticsearch...\033[0m"
 
-    if [ -z ${ES_PID_DIR} ]; then
+    if [ ! -d ${ES_PID_DIR} ]; then
         mkdir -p "${ES_PID_DIR}"
     fi
+    chown -R ${ES_USER}:${ES_GROUP} ${ES_PID_DIR}
 
-    if [ -f ${ES_PID_FILE} ]; then
-        echo -e "\033[31;1mPID file found in ${ES_PID_FILE}, elasticsearch already running?\033[0m"
+    # 判断服务是否已经启动
+    if test -s "${ES_PID_FILE}"
+    then
         local ES_PID="$(cat ${ES_PID_FILE})"
-        local ES_RUNNING_INFO="$( ps ax | grep 'java' | grep ${ES_PID} )"
+        ES_PID=${ES_PID:-"$(ps ax|grep 'java'|grep 'elasticsearch'|awk '{print $1}')"}
+        if kill -0 ${ES_PID} > /dev/null 2> /dev/null
+        then
+            if ps wwwp ${ES_PID} > /dev/null
+            then    # The pid contains a mysqld process
+                  echo ${ES_PID} > "${ES_PID_FILE}"
+                  echo -e "\033[33mA elasticsearch process already exists\033[0m,\033[1mpid=${ES_PID}\033[0m"
+                  exit 1
+            fi
+        else
+            local ES_PID="$(ps ax|grep 'java'|grep 'elasticsearch'|awk '{print $1}')"
+            if kill -0 ${ES_PID} > /dev/null 2> /dev/null
+            then
+                if ps wwwp ${ES_PID} > /dev/null
+                then    # The pid contains a mysqld process
+                      echo ${ES_PID} > "${ES_PID_FILE}"
+                      echo -e "\033[33mA elasticsearch process already exists\033[0m,\033[1mpid=${ES_PID}\033[0m"
+                      exit 1
+                fi
+            fi
+        fi
 
-        if [ ! -z "${ES_RUNNING_INFO}" ] ; then
-          echo -e "\033[31;1mPID ${ES_PID} still alive, elasticsearch is already running. Doing nothing\033[0m"
-          return 1
+        rm -f ${ES_PID_FILE}
+        if test -f "${ES_PID_FILE}"
+        then
+            echo "Fatal error: Can't remove the pid file:
+                ${ES_PID_FILE}
+                Please remove it manually and start $0 again;
+                elasticsearch daemon not started"
+                exit 1
         fi
     fi
 
-    # 目录切换到${ES_HOME},再次调用pushd会回到切换前目录，可循环调用
+    # 判断脚本是否存在
+    ES_BIN_SCRIPT="${ES_HOME}/bin/elasticsearch"
+    if test ! -x "${ES_BIN_SCRIPT}"
+    then
+        echo "\033[31;1mCouldn't find ElasticSearch server ${ES_BIN_SCRIPT}\033[0m"
+        exit 1
+    fi
+
+     # 目录切换到${ES_HOME},再次调用pushd会回到切换前目录，可循环调用
     pushd ${ES_HOME} > /dev/null 2>&1
+
+    ES_START_COMMAND="/usr/bin/env ${ES_BIN_SCRIPT} ${ES_OPTS} > ${ES_LOG} 2>&1"
     # 使用$ES_USER启动elasticsearch
-    echo "${ES_BIN_SCRIPT}"
-    su ${ES_USER} -c "${ES_BIN_SCRIPT}" > /dev/null 2>&1
-    # 获取进程PID
-    local ES_PID=$!
+    su ${ES_USER} -c "${ES_START_COMMAND}" > /dev/null 2>&1
     # 获取执行结果
     local RETURN_CODE=$?
+    local ES_PID="$(ps ax|grep 'java'|grep 'elasticsearch'|awk '{print $1}')"
+    # 记录PID
+    echo "${ES_PID}" > "${ES_PID_FILE}"
+
     # 删除pushd压入栈的目录
     popd > /dev/null 2>&1
 
-    if [ ${RETURN_CODE} -ne 0 ] ; then
-        failure
-        echo -e "Elasticsearch start failure"
+    # sleep 5
+    if test ${RETURN_CODE} -ne 0 -o ${#ES_PID} -eq 0; then
+        echo -e "Starting ElasticSearch \t\t\t\t \033[31;1m[failure]\033[0m"
         exit 1
     else
-        success
-        echo -e "Elasticsearch started successfully,${ES_PID}"
+        echo -e "Starting ElasticSearch  \t\t\t\t \033[32m[ OK ]\033[0m\t\033[1mpid=${ES_PID}\033[0m"
     fi
 }
 
 
 
 function stop(){
-    echo -n -e "\033[1mStopping elasticsearch...\033[0m"
-    if [ -z "${SHUTDOWN_WAIT}" ]; then
+    echo -n -e "\033[1;34mStopping elasticsearch...\033[0m\n"
+    if [ -z "${SHUTDOWN_WAIT}" ]
+    then
         SHUTDOWN_WAIT=5
     fi
 
-    if [ -z "${ES_PID_FILE}" -o ! -f "${ES_PID_FILE}" ]; then
-        echo "\$ES_PID_FILE as set (${ES_PID_FILE}) but the specified file does not exist. Is elasticsearch running? Assuming it has stopped and pro\
-        ceeding."
+    if test ! -s ${ES_PID_FILE}
+    then
+        echo -e "\033[1;31m\$ES_PID_FILE as set (${ES_PID_FILE}) but the specified file does not exist.Is elasticsearch running? Assuming it has stopped and proceeding.\033[0m"
+        if test -f ${ES_PID_FILE}
+        then
+            rm -rf ${ES_PID_FILE}
+        fi
         return 0
     else
         local ES_PID="$(cat ${ES_PID_FILE})"
         # `kill -0` 判断进程是否存在，0存在，1不存
-        kill -0 ${ES_PID} >/dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            echo "PID file ($PIDFILE) found but no matching process was found. Nothing to do."
+        if ! kill -0 ${ES_PID} > /dev/null 2>&1
+        then
+            echo -e "\033[1;31mPID file ($PIDFILE) found but no matching process was found. Nothing to do.\033[0m"
+            if test -f ${ES_PID_FILE}
+            then
+                rm -rf ${ES_PID_FILE}
+            fi
             return 0
         fi
         # 信号15，正常退出程序
         kill ${ES_PID} > /dev/null 2>&1
         while [ ${SHUTDOWN_WAIT} -ge 0 ]; do
             # 判断是否已经杀死进程
-            kill -0 ${ES_PID} >/dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                rm ${ES_PID_FILE}
+            if kill -0 ${ES_PID} > /dev/null 2>&1
+            then
+                rm -rf ${ES_PID_FILE}
                 break
             fi
             # 没杀死，延迟1秒后再次判断
-            if [ ${SHUTDOWN_WAIT} -gt 0 ]; then
+            if [ ${SHUTDOWN_WAIT} -gt 0 ]
+            then
               sleep 1
             fi
             SHUTDOWN_WAIT=`expr ${SHUTDOWN_WAIT} - 1`
         done
 
-        if [ -f "${ES_PID_FILE}" ]; then
+        if test -s "${ES_PID_FILE}"
+        then
             # 再次判断
-            kill -0 ${ES_PID} > /dev/null 2>&1
-            if [ $? -eq 0 ]; then
-                echo "Application still alive, sleeping for 20 seconds before sending SIGKILL"
+            if kill -0 ${ES_PID} > /dev/null 2>&1
+            then
+                echo -e "\033[33mApplication still alive, sleeping for 20 seconds before sending SIGKILL.\033[0m"
                 sleep 20
                 # 再次判断
-                kill -0 `cat ${ES_PID_FILE}` >/dev/null 2>&1
-                if [ $? -eq 0 ]; then
+                if kill -0 `cat ${ES_PID_FILE}` >/dev/null 2>&1
+                then
                     # 强制杀进程
                     kill -9 ${ES_PID} >/dev/null 2>&1
-                    echo "Killed with extreme prejudice"
+                    echo -e "\033[33mKilled with extreme prejudice\033[0m"
                 else
                     echo "Application stopped, no need to use SIGKILL"
                 fi
-                # 移除PID文件
-                rm ${ES_PID_FILE}
             fi
         fi
+    fi
+    echo -e "Stoping ElasticSearch  \t\t\t\t \033[31m[ OK ]\033[0m"
+    if test -f ${ES_PID_FILE}
+    then
+        # 移除PID文件
+        rm -rf ${ES_PID_FILE}
     fi
 }
 
