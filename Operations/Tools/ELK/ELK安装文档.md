@@ -59,6 +59,7 @@
     
     [官方文档](<https://www.elastic.co/guide/en/elasticsearch/reference/current/getting-started.html>)
     ```yaml
+        #elasticsearch.yml
         #集群名称
         cluster.name: elk_cluster_test
         #节点名称
@@ -389,19 +390,35 @@
       curl -i -XGET localhost:9200   
       jps | grep Elasticsearch
     ```
-   
-   
-- 验证
-    ```bash
-        curl -i -XGET http://localhost:9200
-    ```    
-    
-    
 
 
 ## Logstash安装
 ### 简介
     Logstash是一个具有实时管道功能的开源数据收集引擎。Logstash可以将数据处理后写入目标服务，如ElasticSearch。
+
+### 源码安装
+- 下载
+    ```bash
+        cd /usr/local/src/elk
+        # 源码包下载
+        wget https://artifacts.elastic.co/downloads/logstash/logstash-7.1.1.tar.gz
+        # 解压
+        tar -zxvf logstash-7.1.1.tar.gz  
+        # 生产环境搭建
+        cp -rf logstash-7.1.1 $ELK_HOME
+        cd $ELK_HOME
+        ln -s logstash-7.1.1  logstash    
+    ```
+ 
+    
+- Logstash配置
+
+    [官方文档](<https://www.elastic.co/guide/en/logstash/current/introduction.html>)
+    ```yaml
+      #logstash.yml
+    ```
+  
+
 
 
 ## Kibana安装
@@ -453,6 +470,7 @@
 
     [官方文档](<https://www.elastic.co/guide/en/kibana/current/introduction.html>)
     ```yaml
+        #kibana.yml
         #端口
         server.port: 5601
         #绑定地址
