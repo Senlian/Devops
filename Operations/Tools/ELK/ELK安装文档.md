@@ -1,25 +1,26 @@
 # ELK安装
+[TOC]
 
-  |     系统版本     |      JDK版本    |ElasticSearch版本|  Logstash版本   |  Kibana版本    |
- |:----------------:|:---------------:|:---------------:|:---------------:|:--------------:|
-|  CentOS 6.8      | OpenJDK-12.0.1  |        7.1.1    |      7.1.1      |      7.1.1     |
+  |     系统版本     |      JDK版本    |     Nodejs版本  |ElasticSearch版本|  Logstash版本   |  Kibana版本    |
+ |:----------------:|:---------------:|:---------------:|:---------------:|:---------------:|:--------------:|
+|  CentOS 6.8      | OpenJDK-12.0.1  |    v10.15.2     |        7.1.1    |      7.1.1      |      7.1.1     |
 
 ## 文档链接
-[ ElasticSearch官网](<https://www.elastic.co/cn/products/elasticsearch>)
-[ Logstash官网](<https://www.elastic.co/cn/products/logstash>)
-[ Kibana官网](<https://www.elastic.co/cn/products/kibana>)
+[ ElasticSearch官方文档](<https://www.elastic.co/cn/products/elasticsearch>)
+
+[ Logstash官方文档](<https://www.elastic.co/cn/products/logstash>)
+
+[ Kibana官方文档](<https://www.elastic.co/cn/products/kibana>)
 
 
 ## JDK安装
-    Elasticsearch源码包自带"OpenJDK-12.0.1",见《ElasticSearch安装》
-    
+> Elasticsearch源码包自带"OpenJDK-12.0.1",见[ElasticSearch.JDK配置](#jdk)   
     
 
 
 ## ElasticSearch
 ###简介
     Elasticsearch是一个高度可扩展的开源全文搜索和分析引擎。它允许您快速，近实时地存储，搜索和分析大量数据。它通常用作底层引擎/技术，为具有复杂搜索功能和要求的应用程序提供支持
-
 
 ### 源码安装
 - 下载
@@ -41,7 +42,7 @@
     ```
 
 
-- JDK配置
+- <span id="jdk">JDK配置</span>
     ```bash
         // 添加环境变量
         sed -i '$a\export ELK_HOME=/usr/local/elk\nexport JAVA_HOME=$ELK_HOME/elasticsearch/jdk\nexport PATH=$PATH:$JAVA_HOME/bin' /etc/profile
@@ -104,15 +105,16 @@
       sed -i '$a\elk - nproc 4096' /etc/security/limits.conf
     ```
 
-
 ### 服务脚本
 > 编写服务器脚本`elasticsearch.sh`    
 ```bash
-    #!/usr/bin/env bash
     #
-    # chkconfig -57 75
+    # elasticsearch
+    #
+    # chkconfig: -57 75
     # description: elasticsearch service
     # processname: elasticsearch
+    source /etc/profile > /dev/null 2>&1
     
     ES_HOME=
     ES_BIN_DIR=
@@ -370,18 +372,17 @@
     esac
 ```
 
-
 ### 启动
     ```bash
-        cp elasticsearch.sh /usr/bin/elasticsearch
+        cp -f elasticsearch.sh /etc/init.d/elasticsearch
+        chkconfig elasticsearch on
         // 启动服务
-        elasticsearch start
+        service elasticsearch start
         // 关闭服务
-        elasticsearch stop
+        service elasticsearch stop
         // 重启服务
-        elasticsearch restart
+        service elasticsearch restart
     ```
-
 
 ### 验证
     ```bash
@@ -401,24 +402,83 @@
 ## Logstash安装
 
 
-## Kibana
+## Kibana安装
 ### 简介
-    Kibana 是通向 Elastic 产品集的窗口。 它可以在 Elasticsearch 中对数据进行视觉探索和实时分析
-    
-    
-
+    Logstash是一个具有实时管道功能的开源数据收集引擎。Logstash可以将数据处理后写入目标服务，如ElasticSearch。
+### 简介
+    Kibana 是通向 Elastic 产品集的窗口。 它可以在 Elasticsearch 中对数据进行视觉探索和实时分析       
+  
 
 ### 源码安装
+- 下载
+    ```bash
+        cd /usr/local/src/elk
+        # 源码包下载
+        wget https://artifacts.elastic.co/downloads/kibana/kibana-7.1.1-linux-x86_64.tar.gz
+        # 解压
+        tar -zxvf kibana-7.1.1-linux-x86_64.tar.gz   
+        # 生产环境搭建
+        cp -rf kibana-7.1.1 $ELK_HOME
+        cd $ELK_HOME
+        ln -s kibana-7.1.1  kibana    
+    ```
+
+
+- 升级node和npm版本至最新
+    > 安装前确认node和npm为最新版本,否则运行报错    
+    ```bash
+        # 查看版本
+        node -v
+        npm -v
+        # 卸载旧版本
+        yum remove nodejs npm -y
+        # nvm安装
+        curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh | bash
+        # 环境变量
+        sed -i '$a\export NVM_NODEJS_ORG_MIRROR=http://npm.taobao.org/mirrors/node' /etc/profile
+        sed -i 'export NVM_DIR="$HOME/.nvm"' /etc/profile
+        sed -i '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm' /etc/profile
+        sed -i '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion' /etc/profile
+        source /etc/profile
+        # 升级node至v10.15.2
+        nvm install v10.15.2
+        # 版本查看
+        nvm current
+        node -v
+        npm -v
+    ``` 
+
+
+- Kibana配置
+
+    [官方文档](<https://www.elastic.co/guide/en/kibana/current/introduction.html>)
+    ```yaml
+        #端口
+        server.port: 5601
+        #绑定地址
+        server.host: 0.0.0.0
+        #es服务发现
+        elasticsearch.hosts: ["http://localhost:9200","http://39.96.43.209:9200"]
+        #中文支持
+        i18n.locale: "zh-CN"
+    ```
+
+### 启动
 ```bash
-    cd /usr/local/src/elk
-    // 源码包下载
-    wget https://artifacts.elastic.co/downloads/kibana/kibana-7.1.1-linux-x86_64.tar.gz
-    // 解压
-    tar -zxvf kibana-7.1.1-linux-x86_64.tar.gz   
-    // 生产环境搭建
-    cp -rf kibana-7.1.1 $ELK_HOME
-    cd $ELK_HOME
-    ln -s kibana-7.1.1  kibana    
+    # 前台运行
+    ./bin/kibana
+    # 后台运行
+    nohup ./bin/kibana &
 ```
 
-### Kibana配置
+### 验证
+```bash
+    # 方法一
+    jobs
+    # 方法二，kibana进程名node
+    ps ax |grep node
+    # 方法三，通过服务端口确定pid
+    netstat -antp | grep 5601 | awk '{print $NF}'|awk -F/ '{print $1}'
+    # 方法四, 状态码200
+    curl -i -XHEAD http://localhost:5601/app/kibana
+    # 方法五，浏览器访问 http://localhost:5601

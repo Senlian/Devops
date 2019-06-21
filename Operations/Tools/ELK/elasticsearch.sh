@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #
-# chkconfig -57 75
+# elasticsearch
+#
+# chkconfig: -57 75
 # description: elasticsearch service
 # processname: elasticsearch
-
+source /etc/profile > /dev/null 2>&1
 ES_HOME=
 ES_BIN_DIR=
 ES_DATA_DIR=
