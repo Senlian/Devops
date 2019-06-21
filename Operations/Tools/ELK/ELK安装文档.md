@@ -400,11 +400,11 @@
 
 
 ## Logstash安装
+### 简介
+    Logstash是一个具有实时管道功能的开源数据收集引擎。Logstash可以将数据处理后写入目标服务，如ElasticSearch。
 
 
 ## Kibana安装
-### 简介
-    Logstash是一个具有实时管道功能的开源数据收集引擎。Logstash可以将数据处理后写入目标服务，如ElasticSearch。
 ### 简介
     Kibana 是通向 Elastic 产品集的窗口。 它可以在 Elasticsearch 中对数据进行视觉探索和实时分析       
   
