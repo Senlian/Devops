@@ -417,7 +417,16 @@
     ```yaml
       #logstash.yml
     ```
-  
+    ```editorconfig
+      #logstash.conf
+    ```
+      
+
+
+### 启动
+
+
+### 验证
 
 
 
