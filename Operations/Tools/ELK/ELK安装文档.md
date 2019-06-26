@@ -12,6 +12,9 @@
 
 [ Kibana官方文档](<https://www.elastic.co/cn/products/kibana>)
 
+## ELK基本架构
+    beats(收集数据) -> logstash(收集和处理数据，并将数据写入ES、Kafaka等服务) -> elasticsearch(存储数据，提供搜索) -> kibana(数据展示)
+
 
 ## JDK安装
 > Elasticsearch源码包自带"OpenJDK-12.0.1",见[ElasticSearch.JDK配置](#jdk)   
@@ -109,7 +112,7 @@
 ### 服务脚本
 > 编写服务器脚本`elasticsearch.sh`    
 ```bash
-    #
+    #!/usr/bin/env bash
     # elasticsearch
     #
     # chkconfig: -57 75
@@ -392,47 +395,9 @@
     ```
 
 
-## Logstash安装
-### 简介
-    Logstash是一个具有实时管道功能的开源数据收集引擎。Logstash可以将数据处理后写入目标服务，如ElasticSearch。
-
-### 源码安装
-- 下载
-    ```bash
-        cd /usr/local/src/elk
-        # 源码包下载
-        wget https://artifacts.elastic.co/downloads/logstash/logstash-7.1.1.tar.gz
-        # 解压
-        tar -zxvf logstash-7.1.1.tar.gz  
-        # 生产环境搭建
-        cp -rf logstash-7.1.1 $ELK_HOME
-        cd $ELK_HOME
-        ln -s logstash-7.1.1  logstash    
-    ```
- 
-    
-- Logstash配置
-
-    [官方文档](<https://www.elastic.co/guide/en/logstash/current/introduction.html>)
-    ```yaml
-      #logstash.yml
-    ```
-    ```editorconfig
-      #logstash.conf
-    ```
-      
-
-
-### 启动
-
-
-### 验证
-
-
-
 ## Kibana安装
 ### 简介
-    Kibana 是通向 Elastic 产品集的窗口。 它可以在 Elasticsearch 中对数据进行视觉探索和实时分析       
+    Kibana是通向 Elastic产品集的窗口。它可以在 Elasticsearch中对数据进行视觉探索和实时分析       
   
 
 ### 源码安装
@@ -509,3 +474,63 @@
     # 方法四, 状态码200
     curl -i -XHEAD http://localhost:5601/app/kibana
     # 方法五，浏览器访问 http://localhost:5601
+```
+
+
+## Logstash安装
+### 简介
+    Logstash是一个具有实时管道功能的开源数据收集引擎。Logstash可以将数据处理后写入目标服务，如ElasticSearch。
+
+### 源码安装
+- 下载
+    ```bash
+        cd /usr/local/src/elk
+        # 源码包下载
+        wget https://artifacts.elastic.co/downloads/logstash/logstash-7.1.1.tar.gz
+        # 解压
+        tar -zxvf logstash-7.1.1.tar.gz  
+        # 生产环境搭建
+        cp -rf logstash-7.1.1 $ELK_HOME
+        cd $ELK_HOME
+        ln -s logstash-7.1.1  logstash    
+    ```
+ 
+   
+- Logstash配置
+
+    [官方文档](<https://www.elastic.co/guide/en/logstash/current/introduction.html>)
+    - logstash.yml   
+    ```yaml
+      #logstash.yml
+    ```
+    
+    
+
+
+### Logstash插件配置
+> Input(生成事件) -> Filter(事件处理)  -> Output(输出事件)
+#### [Input](<https://www.elastic.co/guide/en/logstash/current/transformation.html>)
+#### [Filter](<https://www.elastic.co/guide/en/logstash/current/filter-plugins.html>)
+#### [Output](<https://www.elastic.co/guide/en/logstash/current/output-plugins.html>)
+#### [Codec](<https://www.elastic.co/guide/en/logstash/current/codec-plugins.html>)
+
+
+### 启动
+    ```bash
+        # 命令调试
+        logstash -e 'input {} filter {} output {}'
+        # 验证配置文件，验证后退出， -t = --config.test_and_exit
+        logstash -f logstash.conf -t
+        # 制定配置文件启动并自动重载配置文件, -r = --config.reload.automatic
+        logstash -f logstash.conf -r
+        # 使用管道
+        不加参数启动，则读取pipelines.yml中内容，实例化文件中设定的所有管道
+    ```
+
+### 验证
+```bash
+    jps | grep logstash
+    ps ax | grep logstash
+```
+
+    
