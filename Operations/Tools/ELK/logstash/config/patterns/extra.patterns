@@ -1,0 +1,3 @@
+DATE_CN %{YEAR}[-/\. ]+%{MONTHNUM}[-/\. ]+%{MONTHDAY}
+DATE %{DATE_US}|%{DATE_EU}|%{DATE_CN}
+LOG_ID [\d]{13,}

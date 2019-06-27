@@ -99,15 +99,15 @@
        
        
         
-- @metedata
+- @metadata
     ```text
-      语法：[@metedata][fieldname]
+      语法：[@metadata][fieldname]
       可以在filter和output中引用，但不在输出内容中显示
       引用元数据
-      [@metedata][_index]      
-      [@metedata][_type]      
-      [@metedata][_id]      
-      [@metedata][timestamp]      
+      [@metadata][_index]      
+      [@metadata][_type]      
+      [@metadata][_id]      
+      [@metadata][timestamp]      
     ```
     
 
@@ -188,6 +188,7 @@
     ```
 
 #### Filter插件
+[patterns](<https://github.com/logstash-plugins/logstash-patterns-core/tree/master/patterns>)
 #### Output插件
 #### 公共插件
                 
