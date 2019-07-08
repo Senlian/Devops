@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service # 定义一个Service
+metadata:
+  name: mysql # 服务名
+spec:
+  ports:
+    - port: 3006 #连接的POD端口
+  selector:
+    app: mysql #服务对应的POD实例

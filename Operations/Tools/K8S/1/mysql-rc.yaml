@@ -1,0 +1,21 @@
+apiVersion: v1  # 必须在kubectl api-versions中
+kind: ReplicationController # 定义一个RC
+metadata:
+  name: mysql # RC名称
+spec:
+  replicas: 1 # 开启1个Pod副本
+  selector:
+    app: mysql # 作用在app=mysql的pod上
+  template: #Pod模板
+    metadata:
+      labels:
+        app: mysql # pod的标签，必须与selector匹配
+    spec:
+      containers: #定义pod的容器
+      - name: mysql #容器名称
+        image: mysql #容器镜像
+        ports:
+        - containerPort: 3306 #容器对外服务端口
+        env: # 注入到容器内的环境变量
+        - name: MYSQL_ROOT_PASSWORD
+          value: "123456" # 注意此处为字符串

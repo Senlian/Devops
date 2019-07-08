@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: myweb
+spec:
+  type: NodePort # 与nodePort一起定义node对外服务端口
+  ports:
+    - port: 8080 #对应的pod端口
+      nodePort: 30001 # node节点通过30001端口对外提供web服务，绑定到8080
+  selector:
+    app: myweb #服务对应的POD实例
