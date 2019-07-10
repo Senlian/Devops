@@ -6,6 +6,8 @@
 
 [K8S部署](<https://blog.51cto.com/lizhenliang/2325770>)
 
+[TCP/IP协议](<https://www.cnblogs.com/imyalost/p/6086808.html>)
+
 ## 系统准备
 
 Name|IP|CentOS|kernel|cpu|memory
