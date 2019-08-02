@@ -400,7 +400,10 @@ systemctl start etcd
     scp -P 22 /opt/etcd/pki/*.pem root@192.168.159.4:/opt/etcd/pki/
     scp -P 22 /opt/etcd/pki/*.pem root@192.168.159.5:/opt/etcd/pki/
 ```
-##### 修改master节点配置
+
+##### 集群外部开启pki安全认证
+    注意：外部的意思在本篇就是使用 etcdtl来访问，etcdctl 就是外部客户端。如果k8s的apiserver访问etcd，那么apiserver就是客户端
+###### 修改master节点配置
 ```bash
 cat > /opt/etcd/etc/etcd.conf << EOF
     #[Member]
@@ -420,7 +423,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_KEY_FILE="/opt/etcd/pki/etcd-server-key.pem" #新增证书私钥
 EOF
 ```
-##### 修改master节点服务文件
+###### 修改master节点服务文件
 ```bash
 cat >  vim /usr/lib/systemd/system/etcd.service << EOF    
     [Unit]
@@ -451,7 +454,7 @@ cat >  vim /usr/lib/systemd/system/etcd.service << EOF
     WantedBy=multi-user.target
 EOF
 ```
-##### 重启master节点并验证
+###### 重启master节点并验证
 ```bash
     systemctl daemon-reload && systemctl restart etcd
     etcdctl cluster-health # 此时没加CA根证书，提示master节点不可达
@@ -463,6 +466,8 @@ EOF
     member e689a191b9fab04f is healthy: got healthy result from http://192.168.159.5:2379
     cluster is healthy
 ```
+##### 集群内部开启pki安全认证
+##### 客户端验证
 
 
 ### 安装k8s的master服务   
