@@ -22,6 +22,7 @@ Node|IP|CentOS|kernel|cpu|memory
 master|192.168.159.3|CentOS Linux release 7.4.1708 (Core)|3.10.0-693.el7.x86_64|Intel(R) Core(TM) i5-7500 CPU @ 3.40GHz * 1|2G
 node1|192.168.159.4|CentOS Linux release 7.4.1708 (Core)|3.10.0-693.el7.x86_64|Intel(R) Core(TM) i5-7500 CPU @ 3.40GHz * 1|2G
 node2|192.168.159.5|CentOS Linux release 7.4.1708 (Core)|3.10.0-693.el7.x86_64|Intel(R) Core(TM) i5-7500 CPU @ 3.40GHz * 1|2G
+node3|192.168.159.6|CentOS Linux release 7.4.1708 (Core)|3.10.0-693.el7.x86_64|Intel(R) Core(TM) i5-7500 CPU @ 3.40GHz * 1|2G
 
 ## 软件环境
 
@@ -174,6 +175,7 @@ https://www.cnblogs.com/effortsing/p/10332492.html
 ##### 生成ETCD服务证书
 + ETCD证书申请文件  
     ```bash 
+        # cat > peer-csr.json << EOF
         cat > etcd-csr.json << EOF
             {
                 "CN": "etcd",
@@ -199,28 +201,46 @@ https://www.cnblogs.com/effortsing/p/10332492.html
                     }
                 ]
             }
+            
+            cat > etcdctl-csr.json << EOF
+            {
+                "CN": "etcd",
+                "key": {
+                    "algo": "ecdsa",
+                    "size": 256
+                },
+                "names": [
+                    {
+                        "C": "CN",
+                        "L": "ChengDu",
+                        "O": "JSQ",
+                        "OU": "devops",
+                        "ST": "SiChuan"
+                    }
+                ]
+            }
     EOF 
   ```
 
 - 利用CA证书和私钥生成ETCD的对等证书和私钥
     ```bash
-      cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=peer etcd-csr.json | cfssljson -bare etcd-peer
-      ls *.pem
-      >> ca-key.pem  ca.pem  etcd-peer-key.pem  etcd-peer.pem
+      cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=peer peer-csr.json | cfssljson -bare peer
+      ls peer*
+      >> peer.csr  peer-csr.json  peer-key.pem  peer.pem
     ``` 
  
 + 利用CA证书和私钥生成ETCD的服务端证书和私钥
     ```bash
-      cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=server etcd-csr.json | cfssljson -bare etcd-server
-      ls *.pem
-      >> ca-key.pem  ca.pem etcd-peer-key.pem  etcd-peer.pem  etcd-server-key.pem  etcd-server.pem
+      cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=server etcd-csr.json | cfssljson -bare etcd
+      ls etcd*
+      >> etcd.csr  etcd-csr.json etcd-key.pem  etcd.pem
     ``` 
 
 - 利用CA证书和私钥生成ETCD的客户端证书和私钥
     ```bash
-      cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=client etcd-csr.json | cfssljson -bare etcd-client
-      ls *.pem
-      >> ca-key.pem  ca.pem  etcd-client-key.pem  etcd-client.pem etcd-peer-key.pem  etcd-peer.pem  etcd-server-key.pem  etcd-server.pem
+      cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=client etcdctl-csr.json | cfssljson -bare etcdctl
+      ls etcdctl
+      >> etcdctl.csr  etcdctl-csr.json  etcdctl-key.pem  etcdctl.pem
     ```                        
 
           
@@ -260,7 +280,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_NAME="etcd-1"
     ETCD_DATA_DIR="/opt/etcd/data"
     ETCD_LISTEN_PEER_URLS="http://192.168.159.3:2380"
-    ETCD_LISTEN_CLIENT_URLS="http://192.168.159.3:2379,http://127.0.0.1"
+    ETCD_LISTEN_CLIENT_URLS="http://192.168.159.3:2379,http://127.0.0.1:2379"
     
     #[Clustering]
     ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.3:2380"
@@ -316,7 +336,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_NAME="etcd-2"
     ETCD_DATA_DIR="/opt/etcd/data"
     ETCD_LISTEN_PEER_URLS="http://192.168.159.4:2380"
-    ETCD_LISTEN_CLIENT_URLS="http://192.168.159.4:2379,http://127.0.0.1"
+    ETCD_LISTEN_CLIENT_URLS="http://192.168.159.4:2379,http://127.0.0.1:2379"
     
     #[Clustering]
     ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.4:2380"
@@ -341,7 +361,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_NAME="etcd-2"
     ETCD_DATA_DIR="/opt/etcd/data"
     ETCD_LISTEN_PEER_URLS="http://192.168.159.4:2380"
-    ETCD_LISTEN_CLIENT_URLS="http://192.168.159.4:2379,http://127.0.0.1"
+    ETCD_LISTEN_CLIENT_URLS="http://192.168.159.4:2379,http://127.0.0.1:2379"
     
     #[Clustering]
     ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.4:2380"
@@ -401,7 +421,7 @@ systemctl start etcd
     scp -P 22 /opt/etcd/pki/*.pem root@192.168.159.5:/opt/etcd/pki/
 ```
 
-##### 集群外部开启pki安全认证
+##### 开启集群外部pki安全认证--服务端证书使用
     注意：外部的意思在本篇就是使用 etcdtl来访问，etcdctl 就是外部客户端。如果k8s的apiserver访问etcd，那么apiserver就是客户端
 ###### 修改master节点配置
 ```bash
@@ -410,7 +430,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_NAME="etcd-1"
     ETCD_DATA_DIR="/opt/etcd/data"
     ETCD_LISTEN_PEER_URLS="http://192.168.159.3:2380"
-    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.3:2379,http://127.0.0.1"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.3:2379,http://127.0.0.1:2379"
     
     #[Clustering]
     ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.3:2380"
@@ -419,8 +439,9 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
     ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
     #[Security]
-    ETCD_CERT_FILE="/opt/etcd/pki/etcd-server.pem" #新增证书
-    ETCD_KEY_FILE="/opt/etcd/pki/etcd-server-key.pem" #新增证书私钥
+    #开启集群外部服务端认证
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #服务器证书，可以使用对等证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #服务器证书私钥，可以使用对等证书私钥
 EOF
 ```
 ###### 修改master节点服务文件
@@ -466,8 +487,584 @@ EOF
     member e689a191b9fab04f is healthy: got healthy result from http://192.168.159.5:2379
     cluster is healthy
 ```
+
+###### 修改node1节点配置
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+    #[Member]
+    ETCD_NAME="etcd-2"
+    ETCD_DATA_DIR="/opt/etcd/data"
+    ETCD_LISTEN_PEER_URLS="http://192.168.159.4:2380"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.4:2379,http://127.0.0.1:2379"
+    
+    #[Clustering]
+    ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.4:2380"
+    ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.4:2379"
+    ETCD_INITIAL_CLUSTER="etcd-1=http://192.168.159.3:2380,etcd-2=http://192.168.159.4:2380,etcd-3=http://192.168.159.5:2380"
+    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+    #[Security]
+    #开启集群外部服务端认证
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #新增证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #新增证书私钥
+EOF
+```
+###### 修改node1节点服务文件
+    同master设置
+###### 重启node1节点并验证
+```bash
+    systemctl daemon-reload && systemctl restart etcd
+    etcdctl cluster-health # 此时没加CA根证书，提示master节点不可达
+    etcdctl -ca-file /opt/etcd/pki/ca.pem cluster-health # 加上CA根证书，集群验证通过,节点链接变为https模式
+```
+```text
+    member 8ada33a16cb8b5f9 is healthy: got healthy result from https://192.168.159.4:2379
+    member df5c33b8666738a6 is healthy: got healthy result from https://192.168.159.3:2379
+    member e689a191b9fab04f is healthy: got healthy result from http://192.168.159.5:2379
+    cluster is healthy
+```
+
+
+###### 修改node2节点配置
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+    #[Member]
+    ETCD_NAME="etcd-3"
+    ETCD_DATA_DIR="/opt/etcd/data"
+    ETCD_LISTEN_PEER_URLS="http://192.168.159.5:2380"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.5:2379,http://127.0.0.1:2379"
+    
+    #[Clustering]
+    ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.5:2380"
+    ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.5:2379"
+    ETCD_INITIAL_CLUSTER="etcd-1=http://192.168.159.3:2380,etcd-2=http://192.168.159.4:2380,etcd-3=http://192.168.159.5:2380"
+    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+    #[Security]
+    #开启集群外部服务端认证
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #新增证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #新增证书私钥
+EOF
+```
+###### 修改node2节点服务文件
+    同master设置
+###### 重启node2节点并验证
+```bash
+    systemctl daemon-reload && systemctl restart etcd
+    etcdctl cluster-health # 此时没加CA根证书，提示master节点不可达
+    etcdctl -ca-file /opt/etcd/pki/ca.pem cluster-health # 加上CA根证书，集群验证通过,节点链接变为https模式
+```
+```text
+    member 8ada33a16cb8b5f9 is healthy: got healthy result from https://192.168.159.4:2379
+    member df5c33b8666738a6 is healthy: got healthy result from https://192.168.159.3:2379
+    member e689a191b9fab04f is healthy: got healthy result from https://192.168.159.5:2379
+    cluster is healthy
+```
+
+
+##### 开启客户端验证--客户端证书使用
+    即开启服务端对客户端的验证
+###### 启动master客户端验证
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+    #[Member]
+    ETCD_NAME="etcd-1"
+    ETCD_DATA_DIR="/opt/etcd/data"
+    ETCD_LISTEN_PEER_URLS="http://192.168.159.3:2380"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.3:2379,http://127.0.0.1:2379"
+    
+    #[Clustering]
+    ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.3:2380"
+    ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.3:2379"
+    ETCD_INITIAL_CLUSTER="etcd-1=http://192.168.159.3:2380,etcd-2=http://192.168.159.4:2380,etcd-3=http://192.168.159.5:2380"
+    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+    #[Security]
+    #开启集群外部服务端认证
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #新增证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #新增证书私钥
+    #开启客户端验证
+    ETCD_CLIENT_CERT_AUTH="true"
+    ETCD_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem"
+EOF
+```
+###### 修改master服务配置
+```bash
+cat > /usr/lib/systemd/system/etcd.service << EOF
+    [Unit]
+    Description=Etcd Server
+    After=network.target
+    After=network-online.target
+    Wants=network-online.target
+    
+    [Service]
+    Type=notify
+    EnvironmentFile=-/opt/etcd/etc/etcd.conf
+    ExecStart=/home/k8s/etcd/etcd \
+    --name=${ETCD_NAME} \
+    --data-dir=${ETCD_DATA_DIR} \
+    --listen-peer-urls=${ETCD_LISTEN_PEER_URLS} \
+    --listen-client-urls=${ETCD_LISTEN_CLIENT_URLS} \
+    --advertise-client-urls=${ETCD_ADVERTISE_CLIENT_URLS} \
+    --initial-advertise-peer-urls=${ETCD_INITIAL_ADVERTISE_PEER_URLS} \
+    --initial-cluster=${ETCD_INITIAL_CLUSTER} \
+    --initial-cluster-token=${ETCD_INITIAL_CLUSTER_TOKEN} \
+    --initial-cluster-state=${ETCD_INITIAL_CLUSTER_STATE} \
+    --cert-file=${ETCD_CERT_FILE} \
+    --key-file=${ETCD_KEY_FILE} \
+    --client-cert-auth=${ETCD_CLIENT_CERT_AUTH} \ # 开启客户端验证
+    --trusted-ca-file=${ETCD_TRUSTED_CA_FILE}     # 生成客户端证书的CA证书
+    Restart=on-failure
+    LimitNOFILE=65536
+    
+    [Install]
+    WantedBy=multi-user.target
+EOF
+```
+###### 重启master并验证
+```bash
+    systemctl daemon-reload && systemctl restart etcd
+    etcdctl cluster-health # 此时没加CA根证书，提示master节点不可达
+    etcdctl -ca-file /opt/etcd/pki/ca.pem cluster-health # 加上CA根证书，master不可访问，因为没有配置客户端证书
+    etcdctl --ca-file=/opt/etcd/pki/ca.pem --cert-file=etcdctl.pem --key-file=etcdctl-key.pem cluster-health # 加上CA根证书，集群正常,也可以使用对等证书及其私钥进行验证
+```
+```text
+    member 8ada33a16cb8b5f9 is healthy: got healthy result from https://192.168.159.4:2379
+    member df5c33b8666738a6 is healthy: got healthy result from https://192.168.159.3:2379
+    member e689a191b9fab04f is healthy: got healthy result from https://192.168.159.5:2379
+    cluster is healthy
+```
+
+
+###### 启动node1客户端验证
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+    #[Member]
+    ETCD_NAME="etcd-2"
+    ETCD_DATA_DIR="/opt/etcd/data"
+    ETCD_LISTEN_PEER_URLS="http://192.168.159.4:2380"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.4:2379,http://127.0.0.1:2379"
+    
+    #[Clustering]
+    ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.4:2380"
+    ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.4:2379"
+    ETCD_INITIAL_CLUSTER="etcd-1=http://192.168.159.3:2380,etcd-2=http://192.168.159.4:2380,etcd-3=http://192.168.159.5:2380"
+    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+    #[Security]
+    #开启集群外部服务端认证
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #新增证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #新增证书私钥
+    #开启客户端验证
+    ETCD_CLIENT_CERT_AUTH="true"
+    ETCD_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem"
+EOF
+```
+###### 修改node1服务配置
+```bash
+cat > /usr/lib/systemd/system/etcd.service << EOF
+    [Unit]
+    Description=Etcd Server
+    After=network.target
+    After=network-online.target
+    Wants=network-online.target
+    
+    [Service]
+    Type=notify
+    EnvironmentFile=-/opt/etcd/etc/etcd.conf
+    ExecStart=/home/k8s/etcd/etcd \
+    --name=${ETCD_NAME} \
+    --data-dir=${ETCD_DATA_DIR} \
+    --listen-peer-urls=${ETCD_LISTEN_PEER_URLS} \
+    --listen-client-urls=${ETCD_LISTEN_CLIENT_URLS} \
+    --advertise-client-urls=${ETCD_ADVERTISE_CLIENT_URLS} \
+    --initial-advertise-peer-urls=${ETCD_INITIAL_ADVERTISE_PEER_URLS} \
+    --initial-cluster=${ETCD_INITIAL_CLUSTER} \
+    --initial-cluster-token=${ETCD_INITIAL_CLUSTER_TOKEN} \
+    --initial-cluster-state=${ETCD_INITIAL_CLUSTER_STATE} \
+    --cert-file=${ETCD_CERT_FILE} \
+    --key-file=${ETCD_KEY_FILE} \
+    --client-cert-auth=${ETCD_CLIENT_CERT_AUTH} \ # 开启客户端验证
+    --trusted-ca-file=${ETCD_TRUSTED_CA_FILE}     # 生成客户端证书的CA证书
+    Restart=on-failure
+    LimitNOFILE=65536
+    
+    [Install]
+    WantedBy=multi-user.target
+EOF
+```
+###### 重启node1并验证
+```bash
+    systemctl daemon-reload && systemctl restart etcd
+    etcdctl cluster-health # 此时没加CA根证书，提示master节点不可达
+    etcdctl -ca-file /opt/etcd/pki/ca.pem cluster-health # 加上CA根证书，master不可访问，因为没有配置客户端证书
+    etcdctl --ca-file=/opt/etcd/pki/ca.pem --cert-file=etcdctl.pem --key-file=etcdctl-key.pem cluster-health # 加上CA根证书，集群正常,也可以使用对等证书及其私钥进行验证
+```
+```text
+    member 8ada33a16cb8b5f9 is healthy: got healthy result from https://192.168.159.4:2379
+    member df5c33b8666738a6 is healthy: got healthy result from https://192.168.159.3:2379
+    member e689a191b9fab04f is healthy: got healthy result from https://192.168.159.5:2379
+    cluster is healthy
+```
+
+###### 启动node2客户端验证
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+    #[Member]
+    ETCD_NAME="etcd-3"
+    ETCD_DATA_DIR="/opt/etcd/data"
+    ETCD_LISTEN_PEER_URLS="http://192.168.159.5:2380"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.5:2379,http://127.0.0.1:2379"
+    
+    #[Clustering]
+    ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.5:2380"
+    ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.5:2379"
+    ETCD_INITIAL_CLUSTER="etcd-1=http://192.168.159.3:2380,etcd-2=http://192.168.159.4:2380,etcd-3=http://192.168.159.5:2380"
+    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+    #[Security]
+    #开启集群外部服务端认证
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #新增证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #新增证书私钥
+    #开启客户端验证
+    ETCD_CLIENT_CERT_AUTH="true"
+    ETCD_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem"
+EOF
+```
+###### 修改node2服务配置
+```bash
+cat > /usr/lib/systemd/system/etcd.service << EOF
+    [Unit]
+    Description=Etcd Server
+    After=network.target
+    After=network-online.target
+    Wants=network-online.target
+    
+    [Service]
+    Type=notify
+    EnvironmentFile=-/opt/etcd/etc/etcd.conf
+    ExecStart=/home/k8s/etcd/etcd \
+    --name=${ETCD_NAME} \
+    --data-dir=${ETCD_DATA_DIR} \
+    --listen-peer-urls=${ETCD_LISTEN_PEER_URLS} \
+    --listen-client-urls=${ETCD_LISTEN_CLIENT_URLS} \
+    --advertise-client-urls=${ETCD_ADVERTISE_CLIENT_URLS} \
+    --initial-advertise-peer-urls=${ETCD_INITIAL_ADVERTISE_PEER_URLS} \
+    --initial-cluster=${ETCD_INITIAL_CLUSTER} \
+    --initial-cluster-token=${ETCD_INITIAL_CLUSTER_TOKEN} \
+    --initial-cluster-state=${ETCD_INITIAL_CLUSTER_STATE} \
+    --cert-file=${ETCD_CERT_FILE} \
+    --key-file=${ETCD_KEY_FILE} \
+    --client-cert-auth=${ETCD_CLIENT_CERT_AUTH} \ # 开启客户端验证
+    --trusted-ca-file=${ETCD_TRUSTED_CA_FILE}     # 生成客户端证书的CA证书
+    Restart=on-failure
+    LimitNOFILE=65536
+    
+    [Install]
+    WantedBy=multi-user.target
+EOF
+```
+###### 重启node2并验证
+```bash
+    systemctl daemon-reload && systemctl restart etcd
+    etcdctl cluster-health # 此时没加CA根证书，提示master节点不可达
+    etcdctl --ca-file /opt/etcd/pki/ca.pem cluster-health # 加上CA根证书，master不可访问，因为没有配置客户端证书
+    etcdctl --ca-file=/opt/etcd/pki/ca.pem --cert-file=etcdctl.pem --key-file=etcdctl-key.pem cluster-health # 加上CA根证书，集群正常,也可以使用对等证书及其私钥进行验证
+```
+```text
+    member 8ada33a16cb8b5f9 is healthy: got healthy result from https://192.168.159.4:2379
+    member df5c33b8666738a6 is healthy: got healthy result from https://192.168.159.3:2379
+    member e689a191b9fab04f is healthy: got healthy result from https://192.168.159.5:2379
+    cluster is healthy
+```
+
+
 ##### 集群内部开启pki安全认证
-##### 客户端验证
+    开启集群节点服务器间的内部通信pki安全认证
+###### 查看集群节点标识
+```bash
+    etcdctl -ca-file=/opt/etcd/pki/ca.pem -cert-file=etcdctl.pem -key-file=etcdctl-key.pem member list
+```
+可以看到此时peerURLs任然是http的方式
+```text
+    8ada33a16cb8b5f9: name=etcd-2 peerURLs=http://192.168.159.4:2380 clientURLs=https://192.168.159.4:2379 isLeader=false
+    df5c33b8666738a6: name=etcd-1 peerURLs=http://192.168.159.3:2380 clientURLs=https://192.168.159.3:2379 isLeader=true
+    e689a191b9fab04f: name=etcd-3 peerURLs=http://192.168.159.5:2380 clientURLs=https://192.168.159.5:2379 isLeader=false
+```    
+
+###### 更新节点peerURLs链接为https方式
+`etcdctl member update <memberID> <peerURLs>`
+
+```bash
+    etcdctl -ca-file=/opt/etcd/pki/ca.pem -cert-file=etcdctl.pem -key-file=etcdctl-key.pem member update df5c33b8666738a6 https://192.168.159.3:2380
+    etcdctl -ca-file=/opt/etcd/pki/ca.pem -cert-file=etcdctl.pem -key-file=etcdctl-key.pem member update 8ada33a16cb8b5f9 https://192.168.159.4:2380
+    etcdctl -ca-file=/opt/etcd/pki/ca.pem -cert-file=etcdctl.pem -key-file=etcdctl-key.pem member update e689a191b9fab04f https://192.168.159.5:2380
+```  
+再次查看标识,peerURLs链接全部为https方式
+```bash
+    etcdctl -ca-file=/opt/etcd/pki/ca.pem -cert-file=etcdctl.pem -key-file=etcdctl-key.pem member list
+```
+```text
+    8ada33a16cb8b5f9: name=etcd-2 peerURLs=https://192.168.159.4:2380 clientURLs=https://192.168.159.4:2379 isLeader=false
+    df5c33b8666738a6: name=etcd-1 peerURLs=http://192.168.159.3:2380 clientURLs=https://192.168.159.3:2379 isLeader=true
+    e689a191b9fab04f: name=etcd-3 peerURLs=http://192.168.159.5:2380 clientURLs=https://192.168.159.5:2379 isLeader=false
+```
+```bash
+    [root@master pki]# etcdctl -ca-file=/opt/etcd/pki/ca.pem -cert-file=etcdctl.pem -key-file=etcdctl-key.pem cluster-health
+    member 8ada33a16cb8b5f9 is healthy: got healthy result from https://192.168.159.4:2379
+    member df5c33b8666738a6 is healthy: got healthy result from https://192.168.159.3:2379
+    member e689a191b9fab04f is healthy: got healthy result from https://192.168.159.5:2379
+    cluster is healthy
+```
+
+###### 修改PEER_URLS链接为https
+    注意：通过上述操作https通信并没有建立，因为PEER_URLS的侦听地址和相关证书还没有配置；
+    如果单个节点的PEER_URLS开启https，则其余节点都需要配置证书和集群客户端侦听地址ETCD_INITIAL_CLUSTER，才能正确通信
+
+```text
+[root@master pki]# systemctl status etcd -l
+● etcd.service - Etcd Server
+   Loaded: loaded (/usr/lib/systemd/system/etcd.service; disabled; vendor preset: disabled)
+   Active: active (running) since 四 2019-08-08 14:11:42 CST; 8min ago
+ Main PID: 2720 (etcd)
+   CGroup: /system.slice/etcd.service
+           └─2720 /home/k8s/etcd/etcd --name=etcd-1 --data-dir=/opt/etcd/data --listen-peer-urls=https://192.168.159.3:2380 --listen-client-urls=https://192.168.159.3:2379,http://127.0.0.1:2379 --advertise-client-urls=https://192.168.159.3:2379 --initial-advertise-peer-urls=https://192.168.159.3:2380 --initial-cluster=etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380 --initial-cluster-token=etcd-cluster --initial-cluster-state=new --cert-file=/opt/etcd/pki/etcd.pem --key-file=/opt/etcd/pki/etcd-key.pem --client-cert-auth=true --trusted-ca-file=/opt/etcd/pki/ca.pem
+
+8月 08 14:11:42 master etcd[2720]: ready to serve client requests
+8月 08 14:11:42 master etcd[2720]: serving insecure client requests on 127.0.0.1:2379, this is strongly discouraged!
+8月 08 14:11:42 master systemd[1]: Started Etcd Server.
+8月 08 14:11:42 master etcd[2720]: rejected connection from "192.168.159.3:46646" (error "tls: failed to verify client's certificate: x509: certificate specifies an incompatible key usage", ServerName "")
+8月 08 14:11:42 master etcd[2720]: WARNING: 2019/08/08 14:11:42 Failed to dial 192.168.159.3:2379: connection error: desc = "transport: authentication handshake failed: remote error: tls: bad certificate"; please retry.
+8月 08 14:11:42 master etcd[2720]: peer e689a191b9fab04f became active
+8月 08 14:11:42 master etcd[2720]: established a TCP streaming connection with peer e689a191b9fab04f (stream MsgApp v2 writer)
+8月 08 14:11:42 master etcd[2720]: established a TCP streaming connection with peer e689a191b9fab04f (stream MsgApp v2 reader)
+8月 08 14:11:42 master etcd[2720]: established a TCP streaming connection with peer e689a191b9fab04f (stream Message reader)
+8月 08 14:11:42 master etcd[2720]: established a TCP streaming connection with peer e689a191b9fab04f (stream Message writer)
+```   
+
+- 修改master节点配置
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+    #[Member]
+    ETCD_NAME="etcd-1"
+    ETCD_DATA_DIR="/opt/etcd/data"
+    ETCD_LISTEN_PEER_URLS="https://192.168.159.3:2380" # 修改PEER_URLS的侦听地址
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.3:2379,http://127.0.0.1"
+    
+    #[Clustering]
+    ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.159.3:2380" # 修改PEER_URLS的侦听地址
+    ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.3:2379"
+    ETCD_INITIAL_CLUSTER="etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380" # 修改PEER_URLS的侦听地址
+    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+    #[Security]
+    #开启集群外部服务端认证
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #新增证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #新增证书私钥
+    #开启客户端验证
+    ETCD_CLIENT_CERT_AUTH="true"
+    ETCD_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem"
+    #开启集群内部服务端认证并配置客户端证书
+    ETCD_PEER_CERT_FILE="/opt/etcd/pki/peer.pem"    
+    ETCD_PEER_KEY_FILE="/opt/etcd/pki/peer-key.pem"   
+    ETCD_PEER_CLIENT_CERT_AUTH="true"
+    ETCD_PEER_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem" 
+EOF
+```  
+- 修改node1节点配置
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+    #[Member]
+    ETCD_NAME="etcd-2"
+    ETCD_DATA_DIR="/opt/etcd/data"
+    ETCD_LISTEN_PEER_URLS="https://192.168.159.4:2380" # 修改PEER_URLS的侦听地址
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.4:2379,http://127.0.0.1"
+    
+    #[Clustering]
+    ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.159.4:2380" # 修改PEER_URLS的侦听地址
+    ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.4:2379"
+    ETCD_INITIAL_CLUSTER="etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380" # 修改PEER_URLS的侦听地址
+    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+    #[Security]
+    #开启集群外部服务端认证
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #新增证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #新增证书私钥
+    #开启客户端验证
+    ETCD_CLIENT_CERT_AUTH="true"
+    ETCD_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem"
+    #开启集群内部服务端认证并配置客户端证书
+    ETCD_PEER_CERT_FILE="/opt/etcd/pki/peer.pem"    
+    ETCD_PEER_KEY_FILE="/opt/etcd/pki/peer-key.pem"   
+    ETCD_PEER_CLIENT_CERT_AUTH="true"
+    ETCD_PEER_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem" 
+EOF
+``` 
+- 修改node2节点配置
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+    #[Member]
+    ETCD_NAME="etcd-1"
+    ETCD_DATA_DIR="/opt/etcd/data"
+    ETCD_LISTEN_PEER_URLS="https://192.168.159.5:2380" # 修改PEER_URLS的侦听地址
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.5:2379,http://127.0.0.1"
+    
+    #[Clustering]
+    ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.159.5:2380" # 修改PEER_URLS的侦听地址
+    ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.5:2379"
+    ETCD_INITIAL_CLUSTER="etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380" # 修改PEER_URLS的侦听地址
+    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+    #[Security]
+    #开启集群内部服务端认证并配置客户端证书
+    ETCD_CERT_FILE="/opt/etcd/pki/etcd.pem" #新增证书
+    ETCD_KEY_FILE="/opt/etcd/pki/etcd-key.pem" #新增证书私钥
+    #开启客户端验证
+    ETCD_CLIENT_CERT_AUTH="true"
+    ETCD_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem"
+    #开启集群内部pki认证
+    ETCD_PEER_CERT_FILE="/opt/etcd/pki/peer.pem"    
+    ETCD_PEER_KEY_FILE="/opt/etcd/pki/peer-key.pem"   
+    ETCD_PEER_CLIENT_CERT_AUTH="true"
+    ETCD_PEER_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem" 
+EOF
+``` 
+
+###### 修改服务配置
+```bash
+cat > /usr/lib/systemd/system/etcd.service << EOF
+    [Unit]
+    Description=Etcd Server
+    After=network.target
+    After=network-online.target
+    Wants=network-online.target
+    
+    [Service]
+    Type=notify
+    EnvironmentFile=-/opt/etcd/etc/etcd.conf
+    ExecStart=/home/k8s/etcd/etcd \
+    --name=${ETCD_NAME} \
+    --data-dir=${ETCD_DATA_DIR} \
+    --listen-peer-urls=${ETCD_LISTEN_PEER_URLS} \
+    --listen-client-urls=${ETCD_LISTEN_CLIENT_URLS} \
+    --advertise-client-urls=${ETCD_ADVERTISE_CLIENT_URLS} \
+    --initial-advertise-peer-urls=${ETCD_INITIAL_ADVERTISE_PEER_URLS} \
+    --initial-cluster=${ETCD_INITIAL_CLUSTER} \
+    --initial-cluster-token=${ETCD_INITIAL_CLUSTER_TOKEN} \
+    --initial-cluster-state=${ETCD_INITIAL_CLUSTER_STATE} \
+    --cert-file=${ETCD_CERT_FILE} \
+    --key-file=${ETCD_KEY_FILE} \
+    --client-cert-auth=${ETCD_CLIENT_CERT_AUTH} \ # 开启客户端验证
+    --trusted-ca-file=${ETCD_TRUSTED_CA_FILE} \     # 生成客户端证书的CA证书
+    --peer-cert-file=${ETCD_PEER_CERT_FILE} \
+    --peer-key-file=${ETCD_PEER_KEY_FILE} \
+    --peer-client-cert-auth=${ETCD_PEER_CLIENT_CERT_AUTH} \
+    --peer-trusted-ca-file=${ETCD_PEER_TRUSTED_CA_FILE}
+    Restart=on-failure
+    LimitNOFILE=65536
+    
+    [Install]
+    WantedBy=multi-user.target
+EOF
+```
+
+###### 重启并验证
+```bash
+systemctl daemon-reload && systemctl restart etcd
+```
+
+```text
+[root@master pki]# systemctl status etcd.service -l
+● etcd.service - Etcd Server
+   Loaded: loaded (/usr/lib/systemd/system/etcd.service; disabled; vendor preset: disabled)
+   Active: active (running) since 四 2019-08-08 14:28:19 CST; 20s ago
+ Main PID: 2812 (etcd)
+   CGroup: /system.slice/etcd.service
+           └─2812 /home/k8s/etcd/etcd --name=etcd-1 --data-dir=/opt/etcd/data --listen-peer-urls=https://192.168.159.3:2380 --listen-client-urls=https://192.168.159.3:2379,http://127.0.0.1:2379 --advertise-client-urls=https://192.168.159.3:2379 --initial-advertise-peer-urls=https://192.168.159.3:2380 --initial-cluster=etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380 --initial-cluster-token=etcd-cluster --initial-cluster-state=new --cert-file=/opt/etcd/pki/etcd.pem --key-file=/opt/etcd/pki/etcd-key.pem --client-cert-auth=true --trusted-ca-file=/opt/etcd/pki/ca.pem --peer-cert-file=/opt/etcd/pki/peer.pem --peer-key-file=/opt/etcd/pki/peer-key.pem --peer-client-cert-auth=true --peer-trusted-ca-file=/opt/etcd/pki/ca.pem
+
+8月 08 14:28:21 master etcd[2812]: df5c33b8666738a6 is starting a new election at term 167
+8月 08 14:28:21 master etcd[2812]: df5c33b8666738a6 became candidate at term 168
+8月 08 14:28:21 master etcd[2812]: df5c33b8666738a6 received MsgVoteResp from df5c33b8666738a6 at term 168
+8月 08 14:28:21 master etcd[2812]: df5c33b8666738a6 [logterm: 167, index: 104] sent MsgVote request to e689a191b9fab04f at term 168
+8月 08 14:28:21 master etcd[2812]: df5c33b8666738a6 [logterm: 167, index: 104] sent MsgVote request to 8ada33a16cb8b5f9 at term 168
+8月 08 14:28:21 master etcd[2812]: raft.node: df5c33b8666738a6 lost leader 8ada33a16cb8b5f9 at term 168
+8月 08 14:28:22 master etcd[2812]: df5c33b8666738a6 [term: 168] received a MsgVote message with higher term from 8ada33a16cb8b5f9 [term: 170]
+8月 08 14:28:22 master etcd[2812]: df5c33b8666738a6 became follower at term 170
+8月 08 14:28:22 master etcd[2812]: df5c33b8666738a6 [logterm: 167, index: 104, vote: 0] cast MsgVote for 8ada33a16cb8b5f9 [logterm: 167, index: 104] at term 170
+8月 08 14:28:22 master etcd[2812]: raft.node: df5c33b8666738a6 elected leader 8ada33a16cb8b5f9 at term 170
+```
+
+> 注意：为了避免报错，先执行更新节点peerURLs链接为https方式是必要的   
+
+#### 向集群添加新节点node3
+###### 下载安装包并初始环境
+```bash
+  mkdir /home/k8s
+  cd /home/k8s
+  wget https://github.com/etcd-io/etcd/releases/download/v3.3.13/etcd-v3.3.13-linux-amd64.tar.gz
+  tar -zxvf etcd-v3.3.13-linux-amd64.tar.gz
+  mv etcd-v3.3.13-linux-amd64 etcd
+  chmod -R +x etcd/
+  cp -f ./{etcd,etcdctl} /usr/bin/
+  cp -f ./{etcd,etcdctl} /usr/local/bin/
+  mkdir -p /opt/etcd/{etc,data,pki}
+```
+
+###### ETCD配置文件
+```bash
+mkdir -p /opt/etcd/{data,etc}
+cat > /opt/etcd/etc/etcd.conf << EOF
+#[Member]
+ETCD_NAME="etcd-4"
+ETCD_DATA_DIR="/opt/etcd/data"
+ETCD_LISTEN_PEER_URLS="http://192.168.159.6:2380"
+ETCD_LISTEN_CLIENT_URLS="http://192.168.159.6:2379,http://127.0.0.1:2379"
+
+#[Clustering]
+ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.6:2380"
+ETCD_ADVERTISE_CLIENT_URLS="http://192.168.159.6:2379"
+ETCD_INITIAL_CLUSTER="etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380,etcd-4=http://192.168.159.5:2380"
+ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+ETCD_INITIAL_CLUSTER_STATE="existing" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+EOF
+```
+
+###### ETCD服务启动文件
+[systemd中文手册](<http://www.jinbuguo.com/systemd/systemd.exec.html>):
+http://www.jinbuguo.com/systemd/systemd.exec.html
+
+```bash
+cat >  /usr/lib/systemd/system/etcd.service << EOF    
+[Unit]
+Description=Etcd Server
+After=network.target
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+EnvironmentFile=-/opt/etcd/etc/etcd.conf
+ExecStart=/home/k8s/etcd/etcd \
+--name=${ETCD_NAME} \
+--data-dir=${ETCD_DATA_DIR} \
+--listen-peer-urls=${ETCD_LISTEN_PEER_URLS} \
+--listen-client-urls=${ETCD_LISTEN_CLIENT_URLS} \
+--initial-advertise-peer-urls=${ETCD_INITIAL_ADVERTISE_PEER_URLS} \
+--advertise-client-urls=${ETCD_ADVERTISE_CLIENT_URLS} \
+--initial-cluster=${ETCD_INITIAL_CLUSTER} \
+--initial-cluster-token=${ETCD_INITIAL_CLUSTER_TOKEN} \
+--initial-cluster-state=${ETCD_INITIAL_CLUSTER_STATE} 
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+
+#### 移除集群添加新节点
+
 
 
 ### 安装k8s的master服务   
@@ -480,5 +1077,4 @@ EOF
 - docker
 - kubelet
 - kube-proxy
-
 
