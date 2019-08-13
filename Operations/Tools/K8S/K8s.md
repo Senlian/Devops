@@ -38,14 +38,15 @@ node2|192.168.159.5|\|
 
 #### 生成CA证书        
 ##### PKI工具 
-[github地址](< https://github.com/cloudflare/cfssl>): https://github.com/cloudflare/cfssl         
-[下载地址](<https://pkg.cfssl.org/>):https://pkg.cfssl.org/            
-[参考地址1](<https://blog.51cto.com/liuzhengwei521/2120535?utm_source=oschina-app>):
-https://blog.51cto.com/liuzhengwei521/2120535?utm_source=oschina-app            
-[参考地址2](<https://segmentfault.com/a/1190000017408573?utm_source=tag-newest>):
-https://segmentfault.com/a/1190000017408573?utm_source=tag-newest
-[参考地址3](<https://www.cnblogs.com/effortsing/p/10332492.html>):
-https://www.cnblogs.com/effortsing/p/10332492.html
+[github地址](< https://github.com/cloudflare/cfssl>): https://github.com/cloudflare/cfssl     
+    
+[下载地址](<https://pkg.cfssl.org/>):https://pkg.cfssl.org/        
+    
+[参考地址1](<https://blog.51cto.com/liuzhengwei521/2120535?utm_source=oschina-app>):https://blog.51cto.com/liuzhengwei521/2120535?utm_source=oschina-app
+            
+[参考地址2](<https://segmentfault.com/a/1190000017408573?utm_source=tag-newest>):https://segmentfault.com/a/1190000017408573?utm_source=tag-newest
+
+[参考地址3](<https://www.cnblogs.com/effortsing/p/10332492.html>):https://www.cnblogs.com/effortsing/p/10332492.html
     
     
 ##### 工具安装    
@@ -102,37 +103,35 @@ https://www.cnblogs.com/effortsing/p/10332492.html
     
   * 名词解释：
     ```text
-        默认策略，指定了证书的有效期是一年(8760h); 
-        expiry，证书的有效期;
-        signing, 表示该证书可用于签名其它证书；生成的 ca.pem 证书中 CA=TRUE;
-        server auth：表示 client 可以用该 CA 对 server 提供的证书进行验证;
-        client auth：表示 server 可以用该 CA 对 client 提供的证书进行验证;
-        服务端证书，profiles用途包含"server auth";
-        客户端证书，profiles用途包含"client auth";
-        对等证书或双向证书，profiles用途包含"server auth"和"client auth".
+        默认策略（default），指定了证书的有效期是一年(8760h)；
+        expiry，证书的有效期；
+        signing, 表示该证书可用于签名其它证书；生成的 ca.pem 证书中 CA=TRUE；
+        server auth，表示 client 可以用该 CA 对 server 提供的证书进行验证；
+        client auth，表示 server 可以用该 CA 对 client 提供的证书进行验证；
+        profiles，定义具体证书生成策略，名称可以自定义，建议与功能相关；
+        服务端证书，profiles用途包含"server auth"；
+        客户端证书，profiles用途包含"client auth"；
+        对等证书或双向证书，profiles用途包含"server auth"和"client auth"。
     ```
    
 - CA证书申请文件
   ```bash
     cfssl print-defaults csr > ca-csr.json # 生成签名申请模板文件
     cat > ca-csr.json << EOF
-        {
-            "CN": "etcd CA",
-            "hosts": [], 
-            "key": {
-                "algo": "ecdsa",
-                "size": 256
-            },
-            "names": [
-                {
-                    "C": "CN",
-                    "L": "ChengDu",
-                    "O": "JSQ",
-                    "OU": "devops",
-                    "ST": "SiChuan"
-                }
-            ]
-        }
+    {
+        "CN": "CA",
+        "key": {
+            "algo": "ecdsa",
+            "size": 256
+        },
+        "names": [
+            {
+                "C": "CN",
+                "L": "ChengDu",
+                "ST": "SiChuan"
+            }
+        ]
+    }
   EOF
   ```
   * 名词解释
@@ -201,8 +200,9 @@ https://www.cnblogs.com/effortsing/p/10332492.html
                     }
                 ]
             }
-            
-            cat > etcdctl-csr.json << EOF
+        EOF  
+          
+        cat > etcdctl-csr.json << EOF
             {
                 "CN": "etcd",
                 "key": {
@@ -219,8 +219,8 @@ https://www.cnblogs.com/effortsing/p/10332492.html
                     }
                 ]
             }
-    EOF 
-  ```
+        EOF 
+    ```
 
 - 利用CA证书和私钥生成ETCD的对等证书和私钥
     ```bash
@@ -239,7 +239,7 @@ https://www.cnblogs.com/effortsing/p/10332492.html
 - 利用CA证书和私钥生成ETCD的客户端证书和私钥
     ```bash
       cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=client etcdctl-csr.json | cfssljson -bare etcdctl
-      ls etcdctl
+      ls etcdctl*
       >> etcdctl.csr  etcdctl-csr.json  etcdctl-key.pem  etcdctl.pem
     ```                        
 
@@ -276,18 +276,18 @@ https://github.com/etcd-io/etcd/releases
 ```bash
 mkdir -p /opt/etcd/{data,etc}
 cat > /opt/etcd/etc/etcd.conf << EOF
-    #[Member]
-    ETCD_NAME="etcd-1"
-    ETCD_DATA_DIR="/opt/etcd/data"
-    ETCD_LISTEN_PEER_URLS="http://192.168.159.3:2380"
-    ETCD_LISTEN_CLIENT_URLS="http://192.168.159.3:2379,http://127.0.0.1:2379"
-    
-    #[Clustering]
-    ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.3:2380"
-    ETCD_ADVERTISE_CLIENT_URLS="http://192.168.159.3:2379"
-    ETCD_INITIAL_CLUSTER="etcd-1=http://192.168.159.3:2380,etcd-2=http://192.168.159.4:2380,etcd-3=http://192.168.159.5:2380"
-    ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
-    ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+#[Member]
+ETCD_NAME="etcd-1"
+ETCD_DATA_DIR="/opt/etcd/data"
+ETCD_LISTEN_PEER_URLS="http://192.168.159.3:2380"
+ETCD_LISTEN_CLIENT_URLS="http://192.168.159.3:2379,http://127.0.0.1:2379"
+
+#[Clustering]
+ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.3:2380"
+ETCD_ADVERTISE_CLIENT_URLS="http://192.168.159.3:2379"
+ETCD_INITIAL_CLUSTER="etcd-1=http://192.168.159.3:2380,etcd-2=http://192.168.159.4:2380,etcd-3=http://192.168.159.5:2380"
+ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+ETCD_INITIAL_CLUSTER_STATE="new" # 此处注意为new，意为创建新集群；existing意为加入已有集群
 EOF
 ```
 
@@ -414,7 +414,8 @@ systemctl start etcd
     e689a191b9fab04f: name=etcd-3 peerURLs=http://192.168.159.5:2380 clientURLs=http://192.168.159.5:2379 isLeader=false
 ```
 
-#### 启动安全集群
+#### 升级为安全集群
+    相对于删除后重建安全集群，逐步升级为安全集群可避免旧数据丢失，以下采取逐步升级的方式
 ##### 证书拷贝
 ```bash
     scp -P 22 /opt/etcd/pki/*.pem root@192.168.159.4:/opt/etcd/pki/
@@ -849,7 +850,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_NAME="etcd-1"
     ETCD_DATA_DIR="/opt/etcd/data"
     ETCD_LISTEN_PEER_URLS="https://192.168.159.3:2380" # 修改PEER_URLS的侦听地址
-    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.3:2379,http://127.0.0.1"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.3:2379,http://127.0.0.1:2379"
     
     #[Clustering]
     ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.159.3:2380" # 修改PEER_URLS的侦听地址
@@ -867,7 +868,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     #开启集群内部服务端认证并配置客户端证书
     ETCD_PEER_CERT_FILE="/opt/etcd/pki/peer.pem"    
     ETCD_PEER_KEY_FILE="/opt/etcd/pki/peer-key.pem"   
-    ETCD_PEER_CLIENT_CERT_AUTH="true"
+    ETCD_PEER_CLIENT_CERT_AUTH="true" # 开启内部对等证书验证
     ETCD_PEER_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem" 
 EOF
 ```  
@@ -878,7 +879,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_NAME="etcd-2"
     ETCD_DATA_DIR="/opt/etcd/data"
     ETCD_LISTEN_PEER_URLS="https://192.168.159.4:2380" # 修改PEER_URLS的侦听地址
-    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.4:2379,http://127.0.0.1"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.4:2379,http://127.0.0.1:2379"
     
     #[Clustering]
     ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.159.4:2380" # 修改PEER_URLS的侦听地址
@@ -907,7 +908,7 @@ cat > /opt/etcd/etc/etcd.conf << EOF
     ETCD_NAME="etcd-1"
     ETCD_DATA_DIR="/opt/etcd/data"
     ETCD_LISTEN_PEER_URLS="https://192.168.159.5:2380" # 修改PEER_URLS的侦听地址
-    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.5:2379,http://127.0.0.1"
+    ETCD_LISTEN_CLIENT_URLS="https://192.168.159.5:2379,http://127.0.0.1:2379"
     
     #[Clustering]
     ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.159.5:2380" # 修改PEER_URLS的侦听地址
@@ -996,7 +997,7 @@ systemctl daemon-reload && systemctl restart etcd
 
 > 注意：为了避免报错，先执行更新节点peerURLs链接为https方式是必要的   
 
-#### 向集群添加新节点node3
+#### 向集群添加非安全新节点node3
 ###### 下载安装包并初始环境
 ```bash
   mkdir /home/k8s
@@ -1008,6 +1009,35 @@ systemctl daemon-reload && systemctl restart etcd
   cp -f ./{etcd,etcdctl} /usr/bin/
   cp -f ./{etcd,etcdctl} /usr/local/bin/
   mkdir -p /opt/etcd/{etc,data,pki}
+```
+
+###### 生成node3对等证书
+    由于旧的证书的hosts列表不包含node3节点，因此需要重新生成node3节点的peer证书
+```bash
+cat > /home/k8s/cfssl/ssl/etcd4-peer-csr.json << EOF 
+{
+    "CN": "etcd",
+    "hosts": [
+        "192.168.159.6"
+    ],
+    "key": {
+        "algo": "ecdsa",
+        "size": 256
+    },
+    "names": [
+        {
+            "C": "CN",
+            "L": "ChengDu",
+            "O": "JSQ",
+            "OU": "k8s",
+            "ST": "SiChuan"
+        }
+    ]
+}
+EOF
+
+cfssl gencert --ca=ca.pem --ca-key=ca-key.pem --config=ca-config.json --profile=peer etcd4-peer-csr.json  | cfssljson -bare etcd4-peer
+scp etcd4-* root@192.168.159.6:/opt/etcd/pki/
 ```
 
 ###### ETCD配置文件
@@ -1023,9 +1053,16 @@ ETCD_LISTEN_CLIENT_URLS="http://192.168.159.6:2379,http://127.0.0.1:2379"
 #[Clustering]
 ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.159.6:2380"
 ETCD_ADVERTISE_CLIENT_URLS="http://192.168.159.6:2379"
-ETCD_INITIAL_CLUSTER="etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380,etcd-4=http://192.168.159.5:2380"
+ETCD_INITIAL_CLUSTER="etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380,etcd-4=http://192.168.159.6:2380"
 ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
 ETCD_INITIAL_CLUSTER_STATE="existing" # 此处注意为new，意为创建新集群；existing意为加入已有集群
+
+#[Security]
+#开启集群内部pki认证,由于已有集群为安全集群，以下配置必须要有
+ETCD_PEER_CERT_FILE="/opt/etcd/pki/etcd4-peer.pem"    
+ETCD_PEER_KEY_FILE="/opt/etcd/pki/etcd4-peer-key.pem"   
+ETCD_PEER_CLIENT_CERT_AUTH="false"
+ETCD_PEER_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem" 
 EOF
 ```
 
@@ -1053,7 +1090,11 @@ ExecStart=/home/k8s/etcd/etcd \
 --advertise-client-urls=${ETCD_ADVERTISE_CLIENT_URLS} \
 --initial-cluster=${ETCD_INITIAL_CLUSTER} \
 --initial-cluster-token=${ETCD_INITIAL_CLUSTER_TOKEN} \
---initial-cluster-state=${ETCD_INITIAL_CLUSTER_STATE} 
+--initial-cluster-state=${ETCD_INITIAL_CLUSTER_STATE} \
+--peer-cert-file=${ETCD_PEER_CERT_FILE} \
+--peer-key-file=${ETCD_PEER_KEY_FILE} \
+--peer-client-cert-auth=${ETCD_PEER_CLIENT_CERT_AUTH} \
+--peer-trusted-ca-file=${ETCD_PEER_TRUSTED_CA_FILE}
 Restart=on-failure
 LimitNOFILE=65536
 
@@ -1062,9 +1103,217 @@ WantedBy=multi-user.target
 EOF
 ```
 
+###### 向已有集群添加新节点
+- 添加新节点
+    ```bash
+    # 任意集群节点执行，注意端口为2380
+    etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member add etcd-4 http://192.168.159.6:2380
+    ```
 
-#### 移除集群添加新节点
+- 集群状态查看
+    ```text
+    [root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member list
+    46899d42c87d524e: name=etcd-2 peerURLs=https://192.168.159.4:2380 clientURLs=https://192.168.159.4:2379 isLeader=true
+    6bdd9302771bc9c5: name=etcd-3 peerURLs=https://192.168.159.5:2380 clientURLs=https://192.168.159.5:2379 isLeader=false
+    a3ec213779ea2c81: name=etcd-1 peerURLs=https://192.168.159.3:2380 clientURLs=https://192.168.159.3:2379 isLeader=false
+    e1b7f9d6e4ff0f36[unstarted]: peerURLs=https://192.168.159.6:2380
+    ```
+    ```text
+    [root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem cluster-health
+    member 46899d42c87d524e is healthy: got healthy result from https://192.168.159.4:2379
+    member 6bdd9302771bc9c5 is healthy: got healthy result from https://192.168.159.5:2379
+    member a3ec213779ea2c81 is healthy: got healthy result from https://192.168.159.3:2379
+    member e1b7f9d6e4ff0f36 is unreachable: no available published client urls
+    cluster is healthy
+    ```
 
+###### 启动新节点
+- 启动
+    ```bash
+     systemctl daemon-reload && systemctl start etcd
+    ```
+
+
+- 集群状态查看
+    ```text
+    [root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member list
+    46899d42c87d524e: name=etcd-2 peerURLs=https://192.168.159.4:2380 clientURLs=https://192.168.159.4:2379 isLeader=true
+    6bdd9302771bc9c5: name=etcd-3 peerURLs=https://192.168.159.5:2380 clientURLs=https://192.168.159.5:2379 isLeader=false
+    a3ec213779ea2c81: name=etcd-1 peerURLs=https://192.168.159.3:2380 clientURLs=https://192.168.159.3:2379 isLeader=false
+    e1b7f9d6e4ff0f36: name=etcd-4 peerURLs=http://192.168.159.6:2380 clientURLs=http://192.168.159.6:2379 isLeader=false
+    ```
+    ```text
+    [root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem cluster-health
+    member 46899d42c87d524e is healthy: got healthy result from https://192.168.159.4:2379
+    member 6bdd9302771bc9c5 is healthy: got healthy result from https://192.168.159.5:2379
+    member a3ec213779ea2c81 is healthy: got healthy result from https://192.168.159.3:2379
+    member e1b7f9d6e4ff0f36 is healthy: got healthy result from http://192.168.159.6:2379
+    cluster is healthy
+    ```
+
+#### 移除集群节点node3
+- 集群节点查看
+```text
+[root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member list
+46899d42c87d524e: name=etcd-2 peerURLs=https://192.168.159.4:2380 clientURLs=https://192.168.159.4:2379 isLeader=true
+6bdd9302771bc9c5: name=etcd-3 peerURLs=https://192.168.159.5:2380 clientURLs=https://192.168.159.5:2379 isLeader=false
+a3ec213779ea2c81: name=etcd-1 peerURLs=https://192.168.159.3:2380 clientURLs=https://192.168.159.3:2379 isLeader=false
+e1b7f9d6e4ff0f36: name=etcd-4 peerURLs=http://192.168.159.6:2380 clientURLs=http://192.168.159.6:2379 isLeader=false
+```
+
+- 移除节点
+```text
+[root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member remove e1b7f9d6e4ff0f36
+Removed member e1b7f9d6e4ff0f36 from cluster
+```
+
+#### 向集群添加安全节点node3
+##### 生成node3节点的服务端证书
+    同上，由于旧服务端证书的hosts列表不包含node3节点，因此需要重新生成node3节点的server证书
+```bash
+cat > etcd4-csr.json << EOF 
+{
+    "CN": "etcd",
+    "hosts": [
+        "192.168.159.6"
+    ],
+    "key": {
+        "algo": "ecdsa",
+        "size": 256
+    },
+    "names": [
+        {
+            "C": "CN",
+            "L": "ChengDu",
+            "O": "JSQ",
+            "OU": "k8s",
+            "ST": "SiChuan"
+        }
+    ]
+}
+EOF
+
+cfssl gencert --ca=ca.pem --ca-key=ca-key.pem --config=ca-config.json --profile=server etcd4-csr.json  | cfssljson -bare etcd4
+scp etcd4* root@192.168.159.6:/opt/etcd/pki/
+```
+```text
+[root@localhost pki]# ls etcd4*
+etcd4.csr  etcd4-csr.json  etcd4-key.pem  etcd4-peer.csr  etcd4-peer-csr.json  etcd4-peer-key.pem  etcd4-peer.pem  etcd4.pem
+```
+
+##### node3逐步升级为安全节点
+    参照【升级为安全集群】章节
+
+##### 添加安全节点node3
+###### 集群添加node3节点    
+```text
+[root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member add etcd-4 https://192.168.159.6:2380
+Added member named etcd-4 with ID 1e7da56305348d0d to cluster
+
+ETCD_NAME="etcd-4"
+ETCD_INITIAL_CLUSTER="etcd-4=https://192.168.159.6:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380,etcd-1=https://192.168.159.3:2380"
+ETCD_INITIAL_CLUSTER_STATE="existing"
+
+[root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member list
+1e7da56305348d0d[unstarted]: peerURLs=https://192.168.159.6:2380
+46899d42c87d524e: name=etcd-2 peerURLs=https://192.168.159.4:2380 clientURLs=https://192.168.159.4:2379 isLeader=true
+6bdd9302771bc9c5: name=etcd-3 peerURLs=https://192.168.159.5:2380 clientURLs=https://192.168.159.5:2379 isLeader=false
+a3ec213779ea2c81: name=etcd-1 peerURLs=https://192.168.159.3:2380 clientURLs=https://192.168.159.3:2379 isLeader=false
+
+[root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem cluster-health
+member 1e7da56305348d0d is unreachable: no available published client urls
+member 46899d42c87d524e is healthy: got healthy result from https://192.168.159.4:2379
+member 6bdd9302771bc9c5 is healthy: got healthy result from https://192.168.159.5:2379
+member a3ec213779ea2c81 is healthy: got healthy result from https://192.168.159.3:2379
+cluster is degraded
+```
+
+###### 安全启动node3的配置方式
+```bash
+cat > /opt/etcd/etc/etcd.conf << EOF
+#[Member]
+ETCD_NAME="etcd-4"
+ETCD_DATA_DIR="/opt/etcd/data"
+ETCD_LISTEN_PEER_URLS="https://192.168.159.6:2380" # 修改PEER_URLS的侦听地址
+ETCD_LISTEN_CLIENT_URLS="https://192.168.159.6:2379,http://127.0.0.1:2379" #注意端口不要忘记
+
+#[Clustering]
+ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.159.6:2380" # 修改PEER_URLS的侦听地址
+ETCD_ADVERTISE_CLIENT_URLS="https://192.168.159.6:2379"
+ETCD_INITIAL_CLUSTER="etcd-1=https://192.168.159.3:2380,etcd-2=https://192.168.159.4:2380,etcd-3=https://192.168.159.5:2380,etcd-4=https://192.168.159.6:2380" # 修改PEER_URLS的侦听地址
+ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+ETCD_INITIAL_CLUSTER_STATE="existing" # 此处必须为existing
+#[Security]
+#开启集群内部服务端认证并配置客户端证书
+ETCD_CERT_FILE="/opt/etcd/pki/etcd4.pem" #新增证书
+ETCD_KEY_FILE="/opt/etcd/pki/etcd4-key.pem" #新增证书私钥
+#开启客户端验证
+ETCD_CLIENT_CERT_AUTH="true"
+ETCD_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem"
+#开启集群内部pki认证
+ETCD_PEER_CERT_FILE="/opt/etcd/pki/etcd4-peer.pem"    
+ETCD_PEER_KEY_FILE="/opt/etcd/pki/etcd4-peer-key.pem"   
+ETCD_PEER_CLIENT_CERT_AUTH="true"
+ETCD_PEER_TRUSTED_CA_FILE="/opt/etcd/pki/ca.pem" 
+EOF
+``` 
+
+###### 安全启动node3的服务文件
+```bash
+cat > /usr/lib/systemd/system/etcd.service << EOF
+[Unit]
+Description=Etcd Server
+After=network.target
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+EnvironmentFile=-/opt/etcd/etc/etcd.conf
+ExecStart=/home/k8s/etcd/etcd \
+--name=${ETCD_NAME} \
+--data-dir=${ETCD_DATA_DIR} \
+--listen-peer-urls=${ETCD_LISTEN_PEER_URLS} \
+--listen-client-urls=${ETCD_LISTEN_CLIENT_URLS} \
+--advertise-client-urls=${ETCD_ADVERTISE_CLIENT_URLS} \
+--initial-advertise-peer-urls=${ETCD_INITIAL_ADVERTISE_PEER_URLS} \
+--initial-cluster=${ETCD_INITIAL_CLUSTER} \
+--initial-cluster-token=${ETCD_INITIAL_CLUSTER_TOKEN} \
+--initial-cluster-state=${ETCD_INITIAL_CLUSTER_STATE} \
+--cert-file=${ETCD_CERT_FILE} \
+--key-file=${ETCD_KEY_FILE} \
+--client-cert-auth=${ETCD_CLIENT_CERT_AUTH} \ # 开启客户端验证
+--trusted-ca-file=${ETCD_TRUSTED_CA_FILE} \     # 生成客户端证书的CA证书
+--peer-cert-file=${ETCD_PEER_CERT_FILE} \
+--peer-key-file=${ETCD_PEER_KEY_FILE} \
+--peer-client-cert-auth=${ETCD_PEER_CLIENT_CERT_AUTH} \
+--peer-trusted-ca-file=${ETCD_PEER_TRUSTED_CA_FILE}
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+###### 启动新节点
+```bash
+systemctl daemon-reload && systemctl start etcd
+```
+```text
+[root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member list
+1e7da56305348d0d: name=etcd-4 peerURLs=https://192.168.159.6:2380 clientURLs=https://192.168.159.6:2379 isLeader=false
+46899d42c87d524e: name=etcd-2 peerURLs=https://192.168.159.4:2380 clientURLs=https://192.168.159.4:2379 isLeader=true
+6bdd9302771bc9c5: name=etcd-3 peerURLs=https://192.168.159.5:2380 clientURLs=https://192.168.159.5:2379 isLeader=false
+a3ec213779ea2c81: name=etcd-1 peerURLs=https://192.168.159.3:2380 clientURLs=https://192.168.159.3:2379 isLeader=false
+
+[root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem cluster-health
+member 1e7da56305348d0d is healthy: got healthy result from https://192.168.159.6:2379
+member 46899d42c87d524e is healthy: got healthy result from https://192.168.159.4:2379
+member 6bdd9302771bc9c5 is healthy: got healthy result from https://192.168.159.5:2379
+member a3ec213779ea2c81 is healthy: got healthy result from https://192.168.159.3:2379
+cluster is healthy
+```
 
 
 ### 安装k8s的master服务   
