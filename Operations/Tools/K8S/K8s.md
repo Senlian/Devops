@@ -29,10 +29,16 @@ node3|192.168.159.6|CentOS Linux release 7.4.1708 (Core)|3.10.0-693.el7.x86_64|I
 Node|IP|etcd|kube-apiserver|kube-controller-manager|kube-scheduler|docker|kubelet|kube-proxy
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|
 master|192.168.159.3|3.3.13|
-node1|192.168.159.4|\|
-node2|192.168.159.5|\|
+node1|192.168.159.4|3.3.13|
+node2|192.168.159.5|3.3.13|
+node3|192.168.159.5|3.3.13|
 
-## Master安装
+## Master服务安装
+Node|IP|etcd|kube-apiserver|kube-controller-manager|kube-scheduler
+|:---|:---|:---|:---|:---|:---|
+master|192.168.159.3|3.3.13|v1.15.2|v1.15.2|v1.15.2
+
+
 ### etcd安装
 [ETCD官方文档](<https://etcd.io/docs/v3.3.12/op-guide/configuration/>):https://etcd.io/docs/v3.3.12/op-guide/configuration/
 
@@ -204,7 +210,7 @@ node2|192.168.159.5|\|
           
         cat > etcdctl-csr.json << EOF
             {
-                "CN": "etcd",
+                "CN": "etcdctl",
                 "key": {
                     "algo": "ecdsa",
                     "size": 256
@@ -1016,7 +1022,7 @@ systemctl daemon-reload && systemctl restart etcd
 ```bash
 cat > /home/k8s/cfssl/ssl/etcd4-peer-csr.json << EOF 
 {
-    "CN": "etcd",
+    "CN": "etcd4-peer",
     "hosts": [
         "192.168.159.6"
     ],
@@ -1110,6 +1116,7 @@ EOF
     etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member add etcd-4 http://192.168.159.6:2380
     ```
 
+
 - 集群状态查看
     ```text
     [root@master pki]# etcdctl --ca-file=ca.pem  --cert-file=etcdctl.pem --key-file=etcdctl-key.pem member list
@@ -1173,7 +1180,7 @@ Removed member e1b7f9d6e4ff0f36 from cluster
 ```bash
 cat > etcd4-csr.json << EOF 
 {
-    "CN": "etcd",
+    "CN": "etcd4",
     "hosts": [
         "192.168.159.6"
     ],
@@ -1315,15 +1322,778 @@ member a3ec213779ea2c81 is healthy: got healthy result from https://192.168.159.
 cluster is healthy
 ```
 
+### K8S下载安装
+[官方下载地址](<https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG-1.15.md#downloads-for-v1152>)
 
-### 安装k8s的master服务   
-- kube-apiserver
-- kube-controller-manager
-- kube-scheduler
+[国内下载](<https://mirrors.ustc.edu.cn/kubernetes/apt/pool/>)
+```bash
+# 需要VPN加速，可搬瓦工VPS搭建VPN下载
+wget https://dl.k8s.io/v1.15.2/kubernetes-server-linux-amd64.tar.gz
+tar -zxvf kubernetes-server-linux-amd64.tar.gz
+cd /home/k8s/kubernetes/server/bin
+cp -f kube-apiserver kube-scheduler kube-controller-manager kubectl /usr/local/bin/
+```
 
-## Node安装
-- etcd
-- docker
-- kubelet
-- kube-proxy
+### kube-apiserver普通安装
+[中文文档](<https://kubernetes.io/zh/docs/reference/command-line-tools-reference/kube-apiserver/>)
+#### kube-apiserver配置文件
+```bash
+cat > /opt/k8s/master/etc/kube-apiserver.conf << EOF
+KUBE_APISERVER_INSECURE_OPTS="--etcd-servers=https://192.168.159.3:2379,https://192.168.159.4:2379 \
+--etcd-cafile=/opt/etcd/pki/ca.pem \
+--etcd-certfile=/opt/etcd/pki/etcdctl.pem \
+--etcd-keyfile=/opt/etcd/pki/etcdctl-key.pem \
+--insecure-bind-address=0.0.0.0 \
+--insecure-port=8080 \
+--service-cluster-ip-range=10.0.0.0/24 \
+--service-node-port-range=30000-50000 \
+--enable-admission-plugins=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota,NodeRestriction \
+--logtostderr=false \
+--log-dir=/opt/k8s/master/log/kube-apiserver" \
+--v=2 
+EOF
+```
+##### 参数说明
+- etcd-servers: 指定ETCD服务的URL；
+- etcd-cafile: 由于之前搭建的ETCD服务是TLS认证模式，需要提供CA证书；
+- etcd-certfile: 由于之前搭建的ETCD服务是TLS认证模式，需要提供etcdctl客户端证书；
+- etcd-keyfile: 由于之前搭建的ETCD服务是TLS认证模式，需要提供etcdctl客户端证书的私钥；
+- insecure-bind-address：kube-apiserver绑定的非安全地址，0.0.0.0表示绑定所有，kubectl默认通过localhost:8080访问kube-apiserver；
+- insecure-port: kube-apiserver绑定的非安全端口，默认8080；
+- service-cluster-ip-range：分配给`Service`的`Cluster IP`的范围，避免与分配给`Node`和`Pod`的IP地址重叠；
+- service-node-port-range：`Service`可映射到物理机的端口`NodePort`的范围；
+- enable-admission-plugins: 集群准入控件，依次生效；
+- logtostderr: 关闭日志标准输出，日志输入到文件；
+- log-dir: 日志目录；
+- v 日志等级,1-4
+
+#### kube-apiserver服务文件
+```bash
+cat > /usr/lib/systemd/system/kube-apiserver.service << EOF
+[Unit]
+Description=k8s apiserver
+Documentation=https://github.com/kubernetes/kubernetes
+After=etcd.service
+Wants=etcd.service
+
+[Service]
+Type=notify
+EnvironmentFile=-/opt/k8s/master/etc/kube-apiserver.conf
+ExecStart=/usr/local/bin/kube-apiserver $KUBE_APISERVER_INSECURE_OPTS
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+#### kube-apiserver服务启动
+##### 启动
+```bash
+systemctl daemon-reload && systemctl start kube-apiserver
+```
+##### 验证
+- 验证方式一
+    ```text
+    [root@master etc]# ps -aux | grep kube-apiserver
+    root       5042  1.6 12.8 402208 239956 ?       Ssl  14:38   0:16 /usr/local/bin/kube-apiserver --etcd-servers=https://192.168.159.3:2379,https://192.168.159.4:2379 --etcd-cafile=/opt/etcd/pki/ca.pem --etcd-certfile=/opt/etcd/pki/etcdctl.pem --etcd-keyfile=/opt/etcd/pki/etcdctl-key.pem --insecure-bind-address=0.0.0.0 --insecure-port=8080 --service-cluster-ip-range=10.0.0.0/24 --service-node-port-range=30000-50000 --enable-admission-plugins=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota,NodeRestriction --logtostderr=false --v=2 --log-dir=/opt/k8s/master/log/kube-apiserver
+    root       5074  0.0  0.0 112724  1000 pts/0    S+   14:54   0:00 grep --color=auto kube-apiserve
+    ```
+
+
+- 验证方式二
+    ```text
+    [root@master etc]# curl localhost:8080
+    {
+      "paths": [
+        "/api",
+        "/api/v1",
+        "/apis",
+        "/apis/",
+        "/apis/admissionregistration.k8s.io",
+        "/apis/admissionregistration.k8s.io/v1beta1",
+        "/apis/apiextensions.k8s.io",
+        "/apis/apiextensions.k8s.io/v1beta1",
+        "/apis/apiregistration.k8s.io",
+        "/apis/apiregistration.k8s.io/v1",
+        "/apis/apiregistration.k8s.io/v1beta1",
+        "/apis/apps",
+        "/apis/apps/v1",
+        "/apis/apps/v1beta1",
+        "/apis/apps/v1beta2",
+        "/apis/authentication.k8s.io",
+        "/apis/authentication.k8s.io/v1",
+        "/apis/authentication.k8s.io/v1beta1",
+        "/apis/authorization.k8s.io",
+        "/apis/authorization.k8s.io/v1",
+        "/apis/authorization.k8s.io/v1beta1",
+        "/apis/autoscaling",
+        "/apis/autoscaling/v1",
+        "/apis/autoscaling/v2beta1",
+        "/apis/autoscaling/v2beta2",
+        "/apis/batch",
+        "/apis/batch/v1",
+        "/apis/batch/v1beta1",
+        "/apis/certificates.k8s.io",
+        "/apis/certificates.k8s.io/v1beta1",
+        "/apis/coordination.k8s.io",
+        "/apis/coordination.k8s.io/v1",
+        "/apis/coordination.k8s.io/v1beta1",
+        "/apis/events.k8s.io",
+        "/apis/events.k8s.io/v1beta1",
+        "/apis/extensions",
+        "/apis/extensions/v1beta1",
+        "/apis/networking.k8s.io",
+        "/apis/networking.k8s.io/v1",
+        "/apis/networking.k8s.io/v1beta1",
+        "/apis/node.k8s.io",
+        "/apis/node.k8s.io/v1beta1",
+        "/apis/policy",
+        "/apis/policy/v1beta1",
+        "/apis/rbac.authorization.k8s.io",
+        "/apis/rbac.authorization.k8s.io/v1",
+        "/apis/rbac.authorization.k8s.io/v1beta1",
+        "/apis/scheduling.k8s.io",
+        "/apis/scheduling.k8s.io/v1",
+        "/apis/scheduling.k8s.io/v1beta1",
+        "/apis/storage.k8s.io",
+        "/apis/storage.k8s.io/v1",
+        "/apis/storage.k8s.io/v1beta1",
+        "/healthz",
+        "/healthz/autoregister-completion",
+        "/healthz/etcd",
+        "/healthz/log",
+        "/healthz/ping",
+        "/healthz/poststarthook/apiservice-openapi-controller",
+        "/healthz/poststarthook/apiservice-registration-controller",
+        "/healthz/poststarthook/apiservice-status-available-controller",
+        "/healthz/poststarthook/bootstrap-controller",
+        "/healthz/poststarthook/ca-registration",
+        "/healthz/poststarthook/crd-informer-synced",
+        "/healthz/poststarthook/generic-apiserver-start-informers",
+        "/healthz/poststarthook/kube-apiserver-autoregistration",
+        "/healthz/poststarthook/scheduling/bootstrap-system-priority-classes",
+        "/healthz/poststarthook/start-apiextensions-controllers",
+        "/healthz/poststarthook/start-apiextensions-informers",
+        "/healthz/poststarthook/start-kube-aggregator-informers",
+        "/healthz/poststarthook/start-kube-apiserver-admission-initializer",
+        "/logs",
+        "/metrics",
+        "/openapi/v2",
+        "/version"
+      ]
+    }
+    ```
+
+
+- 验证方式三
+    ```text
+    [root@master etc]# systemctl status kube-apiserver
+    ● kube-apiserver.service - k8s apiserver
+       Loaded: loaded (/usr/lib/systemd/system/kube-apiserver.service; disabled; vendor preset: disabled)
+       Active: active (running) since 三 2019-08-21 14:38:16 CST; 17min ago
+         Docs: https://github.com/kubernetes/kubernetes
+     Main PID: 5042 (kube-apiserver)
+       CGroup: /system.slice/kube-apiserver.service
+               └─5042 /usr/local/bin/kube-apiserver --etcd-servers=https://192.168.159.3:2379,https://192.168.159.4:2379 --etcd-cafile=/opt/etcd/pki/ca.pem --etcd-certfile=/opt/etcd/pki/etcdctl.pem --etcd-k...
+    ```
+
+
+- 验证方式四
+    ```text
+    [root@master etc]# kubectl get cs
+    NAME                 STATUS      MESSAGE                                                                                     ERROR
+    scheduler            Unhealthy   Get http://127.0.0.1:10251/healthz: dial tcp 127.0.0.1:10251: connect: connection refused   
+    controller-manager   Unhealthy   Get http://127.0.0.1:10252/healthz: dial tcp 127.0.0.1:10252: connect: connection refused   
+    etcd-0               Healthy     {"health":"true"}                                                                           
+    etcd-1               Healthy     {"health":"true"}
+    ```
+    ```text
+    [root@master etc]# kubectl get svc
+    NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+    kubernetes   ClusterIP   10.0.0.1     <none>        443/TCP   25h
+    ```
+
+
+### kube-controller-manager普通安装
+[官方文档](<https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/>)
+
+#### kube-controller-manager配置文件
+```bash
+cat > /opt/k8s/master/etc/kube-controller-manager.conf << EOF
+KUBE_CONTROLLER_MANAGER_INSECURE_OPTS="--master=192.168.159.3:8080 \
+--leader-elect=true \
+--address=0.0.0.0 \
+--port=10252 \
+--service-cluster-ip-range=10.0.0.0/24 \
+--logtostderr=false \
+--log-dir=/opt/k8s/master/log/kube-controller-manager \
+--v=2"
+EOF
+```
+##### 参数说明
+- master: 指定`kube-apiserver`服务的URL；
+- leader-elect: 集群模式开启自动选举；
+- address：kube-controller-manager绑定的非安全地址，0.0.0.0表示绑定所有；
+- port: kube-controller-manager绑定的非安全端口，默认10252；
+- service-cluster-ip-range：分配给`Service`的`Cluster IP`的范围，避免与分配给`Node`和`Pod`的IP地址重叠；
+- logtostderr: 关闭日志标准输出，日志输入到文件；
+- log-dir: 日志目录；
+- v 日志等级,1-4
+
+#### kube-controller-manager服务文件
+```bash
+cat /usr/lib/systemd/system/kube-controller-manager.service << EOF
+[Unit]
+Description=k8s controller manager
+Documentation=https://github.com/kubernetes/kubernetes
+After=kube-apisever.service
+Requires=kube-apiserver.service
+
+[Service]
+EnvironmentFile=-/opt/k8s/master/etc/kube-controller-manager.conf
+ExecStart=/usr/local/bin/kube-controller-manager $KUBE_CONTROLLER_MANAGER_INSECURE_OPTS
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+#### kube-controller-manager服务启动
+##### 启动
+```bash
+systemctl daemon-reload && systemctl start kube-controller-manager
+```
+##### 验证
+- 验证方式一
+    ```text
+    [root@master etc]# systemctl status kube-controller-manager
+    ● kube-controller-manager.service - k8s controller manager
+       Loaded: loaded (/usr/lib/systemd/system/kube-controller-manager.service; disabled; vendor preset: disabled)
+       Active: active (running) since 三 2019-08-21 15:35:17 CST; 3min 50s ago
+         Docs: https://github.com/kubernetes/kubernetes
+     Main PID: 5325 (kube-controller)
+       CGroup: /system.slice/kube-controller-manager.service
+               └─5325 /usr/local/bin/kube-controller-manager --master=192.168.159.3:8080 --leader-elect=true --address=0.0.0.0 --port=10252 --service-cluster-ip-range=10.0.0.0/24 --logtostderr=false --log-d...
+    ```
+
+
+- 验证方式二
+    ```text
+    [root@master etc]# kubectl get cs
+    NAME                 STATUS      MESSAGE                                                                                     ERROR
+    scheduler            Unhealthy   Get http://127.0.0.1:10251/healthz: dial tcp 127.0.0.1:10251: connect: connection refused   
+    controller-manager   Healthy     ok                                                                                          
+    etcd-0               Healthy     {"health":"true"}                                                                           
+    etcd-1               Healthy     {"health":"true"} 
+    ```
+
+
+### kube-scheduler普通安装
+[官方文档](<https://kubernetes.io/zh/docs/reference/command-line-tools-reference/kube-scheduler/>)
+#### kube-scheduler配置文件
+```bash
+cat > /opt/k8s/master/etc/kube-scheduler.conf << EOF
+KUBE_SCHEDULER_INSECURE_OPTS="--master=192.168.159.3:8080 \
+--address=0.0.0.0 \
+--port=10251 \
+--leader-elect=true \
+--logtostderr=false
+--log-dir=/opt/k8s/master/log/kube-scheduler \
+--v=2"
+EOF
+```
+
+#### kube-scheduler服务文件
+```bash
+cat > /usr/lib/systemd/system/kube-scheduler.service << EOF 
+[Unit]
+Description=k8s scheduler
+Documentation=https://github.com/kubernetes/kubernetes
+After=kube-apisever.service
+Requires=kube-apiserver.service
+
+[Service]
+EnvironmentFile=-/opt/k8s/master/etc/kube-scheduler.conf
+ExecStart=/usr/local/bin/kube-scheduler $KUBE_SCHEDULER_INSECURE_OPTS
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+#### kube-scheduler服务启动
+##### 启动
+```bash
+systemctl daemon-reload && systemctl start kube-scheduler
+```
+##### 验证
+- 验证方式一
+    ```text
+    [root@master etc]# systemctl status kube-scheduler
+    ● kube-scheduler.service - k8s scheduler
+       Loaded: loaded (/usr/lib/systemd/system/kube-scheduler.service; disabled; vendor preset: disabled)
+       Active: active (running) since 三 2019-08-21 16:05:11 CST; 2min 40s ago
+         Docs: https://github.com/kubernetes/kubernetes
+     Main PID: 5710 (kube-scheduler)
+       CGroup: /system.slice/kube-scheduler.service
+               └─5710 /usr/local/bin/kube-scheduler --master=192.168.159.3:8080 --leader-elect=true --logtostderr=false --log-dir=/opt/k8s/master/log/kube-scheduler --v=2
+    
+    8月 21 16:05:11 master systemd[1]: Started k8s scheduler.
+    ```
+
+- 验证方式二
+    ```text
+    [root@master etc]# kubectl get cs
+    NAME                 STATUS    MESSAGE             ERROR
+    scheduler            Healthy   ok                  
+    controller-manager   Healthy   ok                  
+    etcd-0               Healthy   {"health":"true"}   
+    etcd-1               Healthy   {"health":"true"} 
+    ```
+
+
+
+### kube-apiserver安装
+#### 创建TLS证书
+##### 生成Master的CA认证中心
++ CA证书生成策略文件
+    ```bash
+      cfssl print-defaults config > ca-config.json # 生成证书策略模板文件
+      cat > ca-config.json << EOF
+        {
+            "signing": {
+                "default": {
+                    "expiry": "8760h"
+                },
+                "profiles": {
+                    "server": {
+                        "expiry": "8760h",
+                        "usages": [
+                            "signing",
+                            "key encipherment",
+                            "server auth"
+                        ]
+                    },
+                    "client": {
+                        "expiry": "8760h",
+                        "usages": [
+                            "signing",
+                            "key encipherment",
+                            "client auth"
+                        ]
+                    },
+                   "peer": {
+                        "expiry": "8760h",
+                        "usages": [
+                            "signing",
+                            "key encipherment",
+                            "server auth",
+                            "client auth"
+                        ]
+                    }
+                }
+            }
+        }
+  EOF
+  ```
+  
+- CA证书申请文件
+  ```bash
+    cfssl print-defaults csr > ca-csr.json # 生成签名申请模板文件
+    cat > ca-csr.json << EOF
+    {
+        "CN": "k8s",
+        "key": {
+            "algo": "ecdsa",
+            "size": 256
+        },
+        "names": [
+            {
+                "C": "CN",
+                "L": "ChengDu",
+                "ST": "SiChuan"
+            }
+        ]
+    }
+  EOF
+  ```  
+
++ 生成CA证书和私钥  
+    ```bash
+      cfssl gencert --initca ca-csr.json | cfssljson -bare ca
+      ls
+      >> ca-config.json  ca.csr  ca-csr.json  ca-key.pem  ca.pem
+      cp -f ca.csr ca*.pem /opt/k8s/master/pki
+    ``` 
+
+##### 生成kube-apiserver的对等证书
+- 证书申请文件
+    > [root@master ssl]# cat kube-apiserver-csr.json 
+    ```json
+    {
+        "CN": "kube-apiserver",
+        "hosts": [
+            "192.168.159.3",
+            "10.0.0.1",
+            "127.0.0.1",
+            "localhost",
+            "localhost.localdomain",
+            "kubernetes",
+            "kubernetes.default",
+            "kubernetes.default.svc",
+            "kubernetes.default.svc.cluster",
+            "kubernetes.default.svc.cluster.local"
+        ],
+        "key": {
+            "algo": "ecdsa",
+            "size": 256
+        },
+        "names": [
+            {
+                "C": "CN",
+                "L": "ChengDu",
+                "O": "JSQ",
+                "OU": "k8s",
+                "ST": "SiChuan"
+            }
+        ]
+    }
+    ```
+
+
++ 生成证书和私钥
+    ```bash
+    cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=peer kube-apiserver-csr.json | cfssljson -bare kube-apiserver
+    ls kube-apiserver*
+    >> kube-apiserver.csr  kube-apiserver-key.pem  kube-apiserver.pem
+    ```
+
+##### 生成kube-proxy的对等证书
+- 证书申请文件
+    > cat kube-proxy-csr.json 
+    ```json
+    {
+        "CN": "kube-proxy",
+        "key": {
+            "algo": "ecdsa",
+            "size": 256
+        },
+        "names": [
+            {
+                "C": "CN",
+                "L": "ChengDu",
+                "O": "JSQ",
+                "OU": "k8s",
+                "ST": "SiChuan"
+            }
+        ]
+    }
+    ``` 
+
++ 生成证书和私钥
+    ```bash
+    cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=peer kube-proxy-csr.json | cfssljson -bare kube-proxy
+    ls kube-proxy*
+    >> kube-proxy.csr  kube-proxy-key.pem  kube-proxy.pem
+    ```  
+         
+
+#### kube-apiserver配置文件
+> cat apiserver.conf 
+```yaml
+#[Generic]
+KUBE_APISERVER_ADVERTISE_ADDRESS="192.168.159.3"
+
+#[Etcd]
+KUBE_APISERVER_ETCD_SERVERS="https://192.168.159.3:2379,https://192.168.159.4:2379"
+KUBE_APISERVER_ETCD_CA="/opt/etcd/pki/ca.pem"
+KUBE_APISERVER_ETCD_CERT="/opt/etcd/pki/etcdctl.pem"
+KUBE_APISERVER_ETCD_KEY="/opt/etcd/pki/etcdctl-key.pem"
+
+#[Secure]
+KUBE_APISERVER_BIND_ADDRESS="192.168.159.3"
+KUBE_APISERVER_SECURE_PORT=6443
+KUBE_APISERVER_CERT_DIR="/opt/k8s/master/pki/"
+KUBE_APISERVER_TLS_CERT="/opt/k8s/master/pki/kube-apiserver.pem"
+KUBE_APISERVER_TLS_PRIVATE_KEY="/opt/k8s/master/pki/kube-apiserver-key.pem"
+
+#[Authentication]
+KUBE_APISERVER_ANONYMOUS_AUTH=true
+KUBE_APISERVER_CLIENT_CA="/opt/k8s/master/pki/ca.pem"
+KUBE_APISERVER_SERVICE_ACCOUNT_KEY="/opt/k8s/master/pki/ca-key.pem"
+KUBE_APISERVER_ENABLE_BOOTSTRAP_TOKEN_AUTH="--enable-bootstrap-token-auth"
+KUBE_APISERVER_TOKEN_AUTH_FILE="/opt/k8s/master/etc/token.csv"
+
+#[Authorization]
+KUBE_APISERVER_AUTHORIZATION_MODE="RBAC,Node"
+
+#[Admission]
+KUBE_APISERVER_ENABLE_ADMISSION_PLUGINS="NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota,NodeRestriction"
+
+#[Misc]
+KUBE_APISERVER_ALLOW_PRIVILEGED=true
+KUBE_APISERVER_APISERVER_COUNT=1
+KUBE_APISERVER_SERVICE_CLUSTER_IP_RANGE="10.0.0.0/24"
+KUBE_APISERVER_SERVICE_NODE_PORT_RANGE="30000-50000"
+
+#[Global]
+KUBE_APISERVER_LOGTOSTDERR=true
+KUBE_APISERVER_LOG_LEVEL=4
+```
+#### kube-apiserver服务文件
+```bash
+cat > /usr/lib/systemd/system/kube-apiserver.service << EOF 
+[Unit]
+Description=k8s apiserver
+Documentation=https://github.com/kubernetes/kubernetes
+After=etcd.service
+Wants=etcd.service
+
+[Service]
+Type=notify
+EnvironmentFile=-/opt/k8s/master/etc/apiserver.conf
+ExecStart=/usr/local/bin/kube-apiserver \
+--advertise-address=${KUBE_APISERVER_ADVERTISE_ADDRESS} \
+--bind-address=${KUBE_APISERVER_BIND_ADDRESS} \
+--secure-port=${KUBE_APISERVER_SECURE_PORT} \
+--service-cluster-ip-range=${KUBE_APISERVER_SERVICE_CLUSTER_IP_RANGE} \
+--service-node-port-range=${KUBE_APISERVER_SERVICE_NODE_PORT_RANGE} \
+--etcd-servers=${KUBE_APISERVER_ETCD_SERVERS} \
+--etcd-cafile=${KUBE_APISERVER_ETCD_CA} \
+--etcd-certfile=${KUBE_APISERVER_ETCD_CERT} \
+--etcd-keyfile=${KUBE_APISERVER_ETCD_KEY} \
+--allow-privileged=${KUBE_APISERVER_ALLOW_PRIVILEGED} \
+--enable-admission-plugins=${KUBE_APISERVER_ENABLE_ADMISSION_PLUGINS} \
+--authorization-mode=${KUBE_APISERVER_AUTHORIZATION_MODE}
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+#### kube-apiserver服务启动
+```bash
+systemctl daemon-reload && systemctl start kube-apiserver
+```
+```text
+[root@master etc]# ps -aux | grep kube-apiserver
+root       2014  1.6 13.4 470180 250744 ?       Ssl  13:47   0:34 /usr/local/bin/kube-apiserver --advertise-address=192.168.159.3 --bind-address=192.168.159.3 --secure-port=6443 --service-cluster-ip-range=10.0.0.0/24 --service-node-port-range=30000-50000 --etcd-servers=https://192.168.159.3:2379,https://192.168.159.4:2379 --etcd-cafile=/opt/etcd/pki/ca.pem --etcd-certfile=/opt/etcd/pki/etcdctl.pem --etcd-keyfile=/opt/etcd/pki/etcdctl-key.pem --allow-privileged=true --enable-admission-plugins=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota,NodeRestriction --authorization-mode=RBAC,Node
+root       2068  0.0  0.0 112724   996 pts/0    R+   14:22   0:00 grep --color=auto kube-apiserver
+```
+```text
+# kube-apiserver本地http端口8080，可以用--insecure-port指定别的端口
+[root@master etc]#curl 127.0.0.1:8080
+{
+  "paths": [
+    "/api",
+    "/api/v1",
+    "/apis",
+    "/apis/",
+    "/apis/admissionregistration.k8s.io",
+    "/apis/admissionregistration.k8s.io/v1beta1",
+    "/apis/apiextensions.k8s.io",
+    "/apis/apiextensions.k8s.io/v1beta1",
+    "/apis/apiregistration.k8s.io",
+    "/apis/apiregistration.k8s.io/v1",
+    "/apis/apiregistration.k8s.io/v1beta1",
+    "/apis/apps",
+    "/apis/apps/v1",
+    "/apis/apps/v1beta1",
+    "/apis/apps/v1beta2",
+    "/apis/authentication.k8s.io",
+    "/apis/authentication.k8s.io/v1",
+    "/apis/authentication.k8s.io/v1beta1",
+    "/apis/authorization.k8s.io",
+    "/apis/authorization.k8s.io/v1",
+    "/apis/authorization.k8s.io/v1beta1",
+    "/apis/autoscaling",
+    "/apis/autoscaling/v1",
+    "/apis/autoscaling/v2beta1",
+    "/apis/autoscaling/v2beta2",
+    "/apis/batch",
+    "/apis/batch/v1",
+    "/apis/batch/v1beta1",
+    "/apis/certificates.k8s.io",
+    "/apis/certificates.k8s.io/v1beta1",
+    "/apis/coordination.k8s.io",
+    "/apis/coordination.k8s.io/v1",
+    "/apis/coordination.k8s.io/v1beta1",
+    "/apis/events.k8s.io",
+    "/apis/events.k8s.io/v1beta1",
+    "/apis/extensions",
+    "/apis/extensions/v1beta1",
+    "/apis/networking.k8s.io",
+    "/apis/networking.k8s.io/v1",
+    "/apis/networking.k8s.io/v1beta1",
+    "/apis/node.k8s.io",
+    "/apis/node.k8s.io/v1beta1",
+    "/apis/policy",
+    "/apis/policy/v1beta1",
+    "/apis/rbac.authorization.k8s.io",
+    "/apis/rbac.authorization.k8s.io/v1",
+    "/apis/rbac.authorization.k8s.io/v1beta1",
+    "/apis/scheduling.k8s.io",
+    "/apis/scheduling.k8s.io/v1",
+    "/apis/scheduling.k8s.io/v1beta1",
+    "/apis/storage.k8s.io",
+    "/apis/storage.k8s.io/v1",
+    "/apis/storage.k8s.io/v1beta1",
+    "/healthz",
+    "/healthz/autoregister-completion",
+    "/healthz/etcd",
+    "/healthz/log",
+    "/healthz/ping",
+    "/healthz/poststarthook/apiservice-openapi-controller",
+    "/healthz/poststarthook/apiservice-registration-controller",
+    "/healthz/poststarthook/apiservice-status-available-controller",
+    "/healthz/poststarthook/bootstrap-controller",
+    "/healthz/poststarthook/ca-registration",
+    "/healthz/poststarthook/crd-informer-synced",
+    "/healthz/poststarthook/generic-apiserver-start-informers",
+    "/healthz/poststarthook/kube-apiserver-autoregistration",
+    "/healthz/poststarthook/rbac/bootstrap-roles",
+    "/healthz/poststarthook/scheduling/bootstrap-system-priority-classes",
+    "/healthz/poststarthook/start-apiextensions-controllers",
+    "/healthz/poststarthook/start-apiextensions-informers",
+    "/healthz/poststarthook/start-kube-aggregator-informers",
+    "/healthz/poststarthook/start-kube-apiserver-admission-initializer",
+    "/logs",
+    "/metrics",
+    "/openapi/v2",
+    "/version"
+  ]
+}
+```
+```text
+[root@master etc]# kubectl get cs
+NAME                 STATUS      MESSAGE                                                                                     ERROR
+scheduler            Unhealthy   Get http://127.0.0.1:10251/healthz: dial tcp 127.0.0.1:10251: connect: connection refused   
+controller-manager   Unhealthy   Get http://127.0.0.1:10252/healthz: dial tcp 127.0.0.1:10252: connect: connection refused   
+etcd-1               Healthy     {"health":"true"}                                                                           
+etcd-0               Healthy     {"health":"true"}
+```
+
+
+### kube-controller-manager安装
+#### 文档
+
+
+
+#### kube-controller-manager配置文件
+#### kube-controller-manager服务文件
+#### kube-controller-manager服务启动
+
+
+### kube-scheduler安装 ###
+
+
+
+## Node服务安装
+```bash
+cd /home/k8s/kubernetes/server/bin
+cp -f kubelet kube-proxy /usr/local/bin/
+```
+### etcd安装 ###
+
+
+### fannel ###
+#### fannel 下载 ####
+[官方下载地址](<https://github.com/coreos/flannel/releases>)
+
+### docker安装 ###
+[官方文档](<https://docs.docker.com/install/linux/docker-ce/binaries/>)
+#### docker 下载 ####
+[官方下载地址](<https://download.docker.com/linux/static/stable/x86_64/>)
+```bash
+wget https://download.docker.com/linux/static/stable/x86_64/docker-19.03.1.tgz
+tar -zxvf  docker-19.03.1.tgz
+cp -f docker/* /usr/local/bin/
+```
+
+#### docker 配置文件
+```bash
+cat > /opt/k8s/node/etc/docker.conf << "EOF"
+DOCKER_NETWORK_OPTIONS="-H unix:///var/run/docker.sock \
+-H 0.0.0.0:2375"
+"EOF"
+```
+
+#### docker 服务文件
+```bash
+cat > /usr/lib/systemd/system/docker.service << EOF
+[Unit]
+Description=Docker Engine Service
+Documentation=https://docs.docker.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/root/bin"
+EnvironmentFile=-/opt/k8s/node/etc/docker.conf
+ExecStart=/usr/local/bin/dockerd $DOCKER_NETWORK_OPTIONS 
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+Delegate=yes
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+
+#### docker 服务启动
+###### 启动
+```bash
+systemctl daemon-reload && systemctl start docker
+```
+
+###### 验证
+```text
+[root@node1 k8s]# docker version
+Client: Docker Engine - Community
+ Version:           19.03.1
+ API version:       1.40
+ Go version:        go1.12.5
+ Git commit:        74b1e89e8a
+ Built:             Thu Jul 25 21:17:37 2019
+ OS/Arch:           linux/amd64
+ Experimental:      false
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          19.03.1
+  API version:      1.40 (minimum version 1.12)
+  Go version:       go1.12.5
+  Git commit:       74b1e89e8a
+  Built:            Thu Jul 25 21:27:55 2019
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          v1.2.6
+  GitCommit:        894b81a4b802e4eb2a91d1ce216b8817763c29fb
+ runc:
+  Version:          1.0.0-rc8
+  GitCommit:        425e105d5a03fabd737a126ad93d62a9eeede87f
+ docker-init:
+  Version:          0.18.0
+  GitCommit:        fec3683
+```
+
+
+### kubelet
+
+### kube-proxy
 
