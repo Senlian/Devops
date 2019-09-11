@@ -1,0 +1,102 @@
+     1	/registry/apiregistration.k8s.io/apiservices/v1.
+     2	
+     3	/registry/apiregistration.k8s.io/apiservices/v1.apps
+     4	
+     5	/registry/apiregistration.k8s.io/apiservices/v1.authentication.k8s.io
+     6	
+     7	/registry/apiregistration.k8s.io/apiservices/v1.authorization.k8s.io
+     8	
+     9	/registry/apiregistration.k8s.io/apiservices/v1.autoscaling
+    10	
+    11	/registry/apiregistration.k8s.io/apiservices/v1.batch
+    12	
+    13	/registry/apiregistration.k8s.io/apiservices/v1.coordination.k8s.io
+    14	
+    15	/registry/apiregistration.k8s.io/apiservices/v1.networking.k8s.io
+    16	
+    17	/registry/apiregistration.k8s.io/apiservices/v1.rbac.authorization.k8s.io
+    18	
+    19	/registry/apiregistration.k8s.io/apiservices/v1.scheduling.k8s.io
+    20	
+    21	/registry/apiregistration.k8s.io/apiservices/v1.storage.k8s.io
+    22	
+    23	/registry/apiregistration.k8s.io/apiservices/v1beta1.admissionregistration.k8s.io
+    24	
+    25	/registry/apiregistration.k8s.io/apiservices/v1beta1.apiextensions.k8s.io
+    26	
+    27	/registry/apiregistration.k8s.io/apiservices/v1beta1.apps
+    28	
+    29	/registry/apiregistration.k8s.io/apiservices/v1beta1.authentication.k8s.io
+    30	
+    31	/registry/apiregistration.k8s.io/apiservices/v1beta1.authorization.k8s.io
+    32	
+    33	/registry/apiregistration.k8s.io/apiservices/v1beta1.batch
+    34	
+    35	/registry/apiregistration.k8s.io/apiservices/v1beta1.certificates.k8s.io
+    36	
+    37	/registry/apiregistration.k8s.io/apiservices/v1beta1.coordination.k8s.io
+    38	
+    39	/registry/apiregistration.k8s.io/apiservices/v1beta1.events.k8s.io
+    40	
+    41	/registry/apiregistration.k8s.io/apiservices/v1beta1.extensions
+    42	
+    43	/registry/apiregistration.k8s.io/apiservices/v1beta1.networking.k8s.io
+    44	
+    45	/registry/apiregistration.k8s.io/apiservices/v1beta1.node.k8s.io
+    46	
+    47	/registry/apiregistration.k8s.io/apiservices/v1beta1.policy
+    48	
+    49	/registry/apiregistration.k8s.io/apiservices/v1beta1.rbac.authorization.k8s.io
+    50	
+    51	/registry/apiregistration.k8s.io/apiservices/v1beta1.scheduling.k8s.io
+    52	
+    53	/registry/apiregistration.k8s.io/apiservices/v1beta1.storage.k8s.io
+    54	
+    55	/registry/apiregistration.k8s.io/apiservices/v1beta2.apps
+    56	
+    57	/registry/apiregistration.k8s.io/apiservices/v2beta1.autoscaling
+    58	
+    59	/registry/apiregistration.k8s.io/apiservices/v2beta2.autoscaling
+    60	
+    61	/registry/configmaps/kube-system/extension-apiserver-authentication
+    62	
+    63	/registry/events/kube-system/kube-controller-manager.15c166b406c87ccd
+    64	
+    65	/registry/events/kube-system/kube-scheduler.15c166b839518142
+    66	
+    67	/registry/masterleases/192.168.159.3
+    68	
+    69	/registry/namespaces/default
+    70	
+    71	/registry/namespaces/kube-node-lease
+    72	
+    73	/registry/namespaces/kube-public
+    74	
+    75	/registry/namespaces/kube-system
+    76	
+    77	/registry/priorityclasses/system-cluster-critical
+    78	
+    79	/registry/priorityclasses/system-node-critical
+    80	
+    81	/registry/ranges/serviceips
+    82	
+    83	/registry/ranges/servicenodeports
+    84	
+    85	/registry/serviceaccounts/default/default
+    86	
+    87	/registry/serviceaccounts/kube-node-lease/default
+    88	
+    89	/registry/serviceaccounts/kube-public/default
+    90	
+    91	/registry/serviceaccounts/kube-system/default
+    92	
+    93	/registry/services/endpoints/default/kubernetes
+    94	
+    95	/registry/services/endpoints/kube-system/kube-controller-manager
+    96	
+    97	/registry/services/endpoints/kube-system/kube-scheduler
+    98	
+    99	/registry/services/specs/default/kubernetes
+   100	
+   101	compact_rev_key
+   102	

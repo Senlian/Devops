@@ -1,0 +1,28 @@
+● kube-proxy.service - kube-proxy server
+   Loaded: loaded (/usr/lib/systemd/system/kube-proxy.service; disabled; vendor preset: disabled)
+   Active: activating (start) since 四 2019-09-05 13:04:35 CST; 1min 4s ago
+     Docs: https://kubernetes.io/docs/
+ Main PID: 87921 (kube-proxy)
+    Tasks: 0
+   Memory: 8.2M
+   CGroup: /system.slice/kube-proxy.service
+           ‣ 87921
+           /usr/local/bin/kube-proxy \
+           --bind-address=192.168.159.4 \
+           --logtostderr=true \
+           --log-dir=/opt/k8s/node/log/kube-proxy \
+           --v=2 --hostname-override=192.168.159.4 \
+           --cluster-cidr=10.0.0.0/24 \
+           --proxy-mode=iptables \
+           --kubeconfig=/opt/k8s/node/etc/bootstrap.kubeconfig
+
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.429142   87921 server.go:550] Running in resource-only container "/kube-proxy"
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.429662   87921 conntrack.go:52] Setting nf_conntrack_max to 131072
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.432679   87921 config.go:187] Starting service config controller
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.432725   87921 controller_utils.go:1029] Waiting for caches to sync for service config controller
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.433094   87921 config.go:96] Starting endpoints config controller
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.433116   87921 controller_utils.go:1029] Waiting for caches to sync for endpoints config controller
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.534195   87921 controller_utils.go:1036] Caches are synced for endpoints config controller
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.534599   87921 proxier.go:679] Not syncing iptables until Services and Endpoints have been received from master
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.534833   87921 controller_utils.go:1036] Caches are synced for service config controller
+9月 05 13:04:35 node1 kube-proxy[87921]: I0905 13:04:35.535000   87921 service.go:332] Adding new service port "default/kubernetes:https" at 10.0.0.1:443/TCP
